@@ -1,0 +1,96 @@
+---
+title: "Data Science & Analytics Cases: Project Overview"
+sidebarTitle: "Introduction"
+description: "Explore a curated set of end-to-end data science case studies in Python covering NLP, supervised learning, EDA, and SQL data engineering workflows."
+---
+
+This project is a portfolio of standalone Python and Jupyter Notebook case studies that walk through real-world data problems from raw data to actionable insight. Each study is self-contained and spans one of four core domains: **NLP & Text Analysis**, **Machine Learning**, **Exploratory Data Analysis**, and **SQL & Data Engineering**. Whether you're exploring hotel-review sentiment, predicting customer repurchase probability, analysing Barcelona's climate, or building a full MySQL pipeline for traffic-accident data, every case study follows a reproducible workflow you can run on your own machine.
+
+<CardGroup cols={2}>
+  <Card
+    title="NLP & Text Analysis"
+    icon="message-lines"
+    href="/cases/nlp/sentiment-analysis"
+  >
+    Sentiment analysis, topic modelling with BERTopic, fake-news word-frequency analysis, and text-similarity scoring using NLTK and Transformers.
+  </Card>
+  <Card
+    title="Machine Learning"
+    icon="brain-circuit"
+    href="/cases/ml/breast-cancer-classification"
+  >
+    Supervised classification and regression studies including breast-cancer diagnosis, customer repurchase prediction (XGBoost / LightGBM), and house-price modelling.
+  </Card>
+  <Card
+    title="Exploratory Data Analysis"
+    icon="chart-mixed"
+    href="/cases/eda/barcelona-climate"
+  >
+    Visual and statistical exploration of Barcelona weather records, Zara stock performance, Leo Messi career statistics, and Oxfam survey data.
+  </Card>
+  <Card
+    title="SQL & Data Engineering"
+    icon="database"
+    href="/cases/sql/barcelona-accidents"
+  >
+    End-to-end MySQL pipeline that loads 150 000+ Barcelona traffic-accident records, defines custom functions, creates semantic views, and runs eight advanced analysis queries.
+  </Card>
+</CardGroup>
+
+## Repository Structure
+
+The repository groups case studies by the complexity of their setup. Lightweight, notebook-only studies (such as `Breast cancer.ipynb` or `Clima de Barcelona.ipynb`) sit at the root of the repository so they can be opened and run immediately. More involved projects that require supporting source files, helper modules, or external services live in their own named sub-folders, each containing a `README.md` that explains the project goals and how to run it.
+
+```
+Data-Science-and-Analytics/
+│
+├── 📓 Breast cancer.ipynb                    # ML — classification
+├── 📓 Clima de Barcelona.ipynb               # EDA — climate analysis
+├── 📓 Analisis de sentimientos.ipynb         # NLP — sentiment analysis
+├── 📓 Analisis de reseñas.ipynb              # NLP — review analysis + BERTopic
+├── 📓 Fake News.ipynb                        # NLP — word-frequency analysis
+├── 📓 Similarity rate between two texts.ipynb # NLP — text similarity
+├── 📓 Damavis.ipynb                          # EDA — technical challenge
+├── 📓 Leo Messi.ipynb                        # EDA — career statistics
+├── 📓 Oxfam .ipynb                           # EDA — survey data
+│
+├── 📂 Estudio de recompra/                   # ML — repurchase prediction
+│   ├── Analisis.ipynb
+│   ├── src/                                  # Helper modules
+│   └── README.md
+│
+├── 📂 House price prediction model/          # ML — regression
+│   ├── Pre-processing and feature engineering.ipynb
+│   └── Supervised methods.ipynb
+│
+├── 📂 Accidentes de tránsito en Barcelona/   # SQL — full pipeline
+│   ├── 01_schema.py … 05_analysis_queries.py
+│   ├── Archivos/                             # CSV source data
+│   ├── run_all.bat
+│   └── README.md
+│
+└── 📂 Zara/                                  # EDA — stock analysis
+    └── Zara.ipynb
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Language** | Python 3.12 |
+| **Notebooks** | Jupyter Notebook |
+| **Data manipulation** | pandas 2.0, NumPy |
+| **Machine learning** | scikit-learn, XGBoost, LightGBM, Optuna |
+| **NLP** | NLTK, BERTopic, Hugging Face Transformers |
+| **Database** | MySQL 8.0, mysql-connector-python |
+| **Visualisation** | matplotlib, seaborn |
+| **Other** | warnings, datetime, scipy |
+
+<Note>
+  Case studies are written in **Spanish or English** depending on the origin of
+  the dataset and its intended audience. For example, the Barcelona traffic
+  accidents project (`Accidentes de tránsito en Barcelona`) and the climate
+  analysis (`Clima de Barcelona`) are documented in Spanish, while notebooks
+  such as `Fake News.ipynb` and `Similarity rate between two texts.ipynb` are
+  written in English.
+</Note>

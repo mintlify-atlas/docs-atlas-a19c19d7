@@ -1,0 +1,110 @@
+---
+title: "Breast Cancer Classification with Scikit-learn"
+sidebarTitle: "Breast Cancer"
+description: "Binary classification of breast tumors as malignant or benign using the Wisconsin Breast Cancer dataset and scikit-learn classifiers."
+---
+
+This notebook applies supervised machine learning classifiers to the Wisconsin Breast Cancer dataset, exploring preprocessing steps, missing value handling, and evaluating multiple classification models to distinguish between benign and malignant tumors.
+
+## Dataset
+
+The Wisconsin Breast Cancer dataset (`breast-cancer.csv`) contains **699 instances** and **11 columns**. The `ID` column is dropped before modeling, leaving 9 cytological features (all scored on a scale of 1–10) plus the binary target variable `class`:
+
+| Column | Description |
+|--------|-------------|
+| `clump_thickness` | Clump thickness |
+| `uniformity_cell_size` | Uniformity of cell size |
+| `uniformity_cell_shape` | Uniformity of cell shape |
+| `marginal_adhesion` | Marginal adhesion |
+| `single_epithelial_cell_size` | Single epithelial cell size |
+| `bare_nuclei` | Bare nuclei *(contains 16 missing values, encoded as `?`)* |
+| `bland_chromatin` | Bland chromatin |
+| `normal_nucleoli` | Normal nucleoli |
+| `mitoses` | Mitoses |
+| `class` | Target — `2` = benign, `4` = malignant |
+
+The dataset is read with `na_values="?"` so that `?` entries in `bare_nuclei` are automatically treated as `NaN`. Summary statistics show feature values range from 1 to 10, with `class` values of either 2 (benign) or 4 (malignant).
+
+## Methodology
+
+<Steps>
+  <Step title="Load Data">
+    Read `breast-cancer.csv`, mapping `?` to `NaN`:
+
+    ```python
+    import pandas as pd
+    df = pd.read_csv("breast-cancer.csv", na_values="?")
+    # Shape: (699, 11)
+    ```
+  </Step>
+
+  <Step title="Preprocessing">
+    Drop the non-predictive `ID` column, then inspect and handle missing values. Only `bare_nuclei` has missing values (16 out of 699). The notebook fills them with the mode:
+
+    ```python
+    df.drop(columns="ID", inplace=True)
+
+    # Check missing values
+    df.isna().sum()
+    # bare_nuclei    16
+
+    # Impute with mode
+    df.bare_nuclei.fillna(df.bare_nuclei.mode().iloc[0], inplace=True)
+    ```
+
+    After imputation, the most frequent value for `bare_nuclei` is `1.0` (418 occurrences).
+  </Step>
+
+  <Step title="Model Training">
+    The notebook trains and evaluates multiple scikit-learn classifiers on the preprocessed features, comparing their accuracy on the binary classification task (benign vs. malignant).
+  </Step>
+
+  <Step title="Evaluation">
+    Models are assessed using accuracy, confusion matrices, and other classification metrics. Results are visualized with bar charts of feature value distributions and scatter plots of predicted vs. actual class labels.
+  </Step>
+</Steps>
+
+## Models
+
+The notebook tests several scikit-learn classifiers. Example of loading and fitting one:
+
+```python
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+X = df.drop(columns="class")
+y = df["class"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+knn = KNeighborsClassifier()
+knn.fit(X_train, y_train)
+predictions = knn.predict(X_test)
+```
+
+## Evaluation
+
+Models are evaluated with accuracy scores and confusion matrices. The data contains a mix of benign (class=2) and malignant (class=4) samples, with a descriptive statistics summary showing:
+
+- `class` mean ≈ 2.69 (skewed toward benign)
+- Feature means range from ~1.59 (`mitoses`) to ~4.42 (`clump_thickness`)
+
+Confusion matrix visualization example:
+
+```python
+cm = confusion_matrix(y_test, predictions)
+sns.heatmap(cm, annot=True, fmt="d")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix")
+plt.show()
+```
+
+<Tip>
+For a regression case study using a similar scikit-learn workflow on structured tabular data, see the [House Price Prediction](./house-price-prediction) guide.
+</Tip>

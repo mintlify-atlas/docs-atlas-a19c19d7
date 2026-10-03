@@ -1,0 +1,172 @@
+---
+title: "Trialing Data: Cleaning and Results Visualization"
+sidebarTitle: "Trialing"
+description: "Clean and visualize trial competition results data using Python pandas and matplotlib, from raw CSV to publication-ready charts."
+---
+
+This project works with clinical trial competition data collected by the Trialing platform — a registry of oncology clinical trials conducted at hospitals across Spain. Two complementary notebooks cover the full pipeline: the first cleans and structures the raw CSV export, and the second loads the cleaned output to produce publication-quality charts analysing competitive positioning across sponsors and hospital centres.
+
+## Data Cleaning
+
+**Source notebook:** `Cleaning Trialing data.ipynb` (Python)
+
+### Source File: `reto_trialing.csv`
+
+The raw file contains **3,591 rows** and **4 columns**, each row representing a single trial–hospital assignment:
+
+| Column | Type (raw) | Description |
+|---|---|---|
+| `trial_id` | float64 | Internal trial identifier (many NaN values; 749 rows have no assigned ID) |
+| `acronym` | object | Trial acronym / short name (2 NaN values) |
+| `sponsor` | object | Sponsoring company or institution (70 NaN values; mixed capitalisation) |
+| `hospital` | object | Hospital name and city, comma-separated (11 NaN values) |
+
+### Key Cleaning Steps
+
+1. **Column name standardisation** — column labels are title-cased (`datos.columns.str.title()`) to produce `Trial_Id`, `Acronym`, `Sponsor`, `Hospital`.
+
+2. **Sponsor normalisation** — the `Sponsor` column uses inconsistent capitalisation (e.g. `ASTRAZENECA` vs `AstraZeneca` vs `Astrazeneca`). A `lambda` applying `.title()` to each non-null value standardises all entries to title case, reducing the number of apparent duplicate sponsors.
+
+3. **Trial ID type conversion** — `trial_id` is stored as `float64` due to NaN values. A `lambda` converts all non-NaN values to `int` and assigns `0` to missing IDs:
+   ```python
+   datos['Trial_Id'] = datos.Trial_Id.apply(lambda x: int(x) if x == x else 0)
+   ```
+   After conversion, IDs range from **0** (unknown) to **1,887**.
+
+4. **City extraction** — the `Hospital` column contains both the hospital name and city joined by a comma (e.g. `"Hospital Universitario 12 De Octubre, Madrid"`). A new `Ciudad` (city) column is split out:
+   ```python
+   datos['Ciudad']   = datos.Hospital.str.split(', ').str[1]
+   datos['Hospital'] = datos.Hospital.str.split(',').str[0]
+   ```
+
+5. **Bilingual city name resolution** — 227 rows contain city names with a slash separator for the Spanish / regional-language form (e.g. `"Pamplona/Iruña"`, `"Alicante/Alacant"`). The Spanish name is kept:
+   ```python
+   datos['Ciudad'] = datos.Ciudad.str.split("/").str[0]
+   ```
+
+6. **Hospital name micro-fixes** — occurrences of `"De "` and `"Del "` within hospital names are lowercased (`"de "`, `"del "`) for consistency.
+
+7. **Duplicate and null audits:**
+   - **1,744 fully duplicate rows** are identified (`datos.duplicated(datos.columns)`).
+   - **749 rows** have `Trial_Id == 0` (no ID assigned in the source system).
+   - **70 rows** have no `Sponsor` — all belong to trial ID 92 (`GO30103`).
+   - **11 rows** have no `Hospital` or `Ciudad` — primarily trial ID 928 (`U31402-A-U201`) from Daiichi Sankyo.
+   - **2 rows** have no `Acronym` — both belong to trial ID 198 from Daiichi Sankyo.
+
+8. **ID gap analysis** — of 1,882 possible integer IDs between 6 and 1,887, **1,654 are absent** from the dataset, indicating the registry covers only a subset of all registered trials.
+
+### Output File: `clean_datos Trialing.csv`
+
+The cleaned dataset retains **3,591 rows** and **5 columns** (`Trial_Id`, `Acronym`, `Sponsor`, `Hospital`, `Ciudad`), written to `clean_datos Trialing.csv` for downstream use.
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+plt.style.use('bmh')
+
+datos = pd.read_csv('reto_trialing.csv')
+
+# Standardise column names
+datos.columns = datos.columns.str.title()
+
+# Normalise sponsor capitalisation
+datos['Sponsor'] = datos.Sponsor.apply(lambda x: x.title() if x == x else np.NaN)
+
+# Convert Trial_Id to integer (0 for unknown)
+datos['Trial_Id'] = datos.Trial_Id.apply(lambda x: int(x) if x == x else 0)
+
+# Split hospital name and city
+datos['Ciudad']   = datos.Hospital.str.split(', ').str[1]
+datos['Hospital'] = datos.Hospital.str.split(',').str[0]
+
+# Resolve bilingual city names (keep Spanish form)
+datos['Ciudad'] = datos.Ciudad.str.split("/").str[0]
+
+# Lowercase internal prepositions in hospital names
+datos['Hospital'] = datos.Hospital.str.replace('De ', 'de ')
+datos['Hospital'] = datos.Hospital.str.replace('Del ', 'del ')
+```
+
+## Visualization
+
+**Source notebook:** `Gráficos de los resultados.ipynb` (R)
+
+The visualisation notebook reads `clean_datos Trialing.csv` and focuses on **Janssen** — one of the major sponsors in the dataset — analysing both its own trial portfolio and its competitive footprint across hospital centres.
+
+### Charts Produced
+
+1. **Janssen trial frequency bar chart** — a horizontal bar chart showing the number of hospital registrations for each Janssen trial acronym, revealing which Janssen studies have the broadest multi-centre reach.
+
+2. **Per-hospital competitor bar charts (23 hospitals)** — for each of the 23 hospitals where Janssen has at least one trial, a bar chart displays the number of trial registrations per sponsor at that hospital. This shows, at each centre, how many trials Janssen's competitors are running alongside Janssen's own studies. Charts are saved as `{hospital}_bar.png`.
+
+3. **Per-hospital Janssen share pie charts (23 hospitals)** — for each hospital, a pie chart summarises the proportion of trial registrations belonging to Janssen vs. all other sponsors combined, with the Janssen percentage labelled. Charts are saved as `{hospital}_pie.png`.
+
+```r
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(skimr)
+
+datos <- read.csv('clean_datos Trialing.csv', stringsAsFactors = FALSE, na.strings = "")
+
+# Filter to Janssen trials only
+Janssen_datos <- datos %>% filter(Sponsor == "Janssen")
+
+# Count registrations per trial acronym
+resultados_Janssen <- data.frame(table(Janssen_datos$Acronym))
+colnames(resultados_Janssen) <- c('Ensayo', 'N_total')
+
+# Bar chart: Janssen trials by hospital count
+ggplot(resultados_Janssen) +
+  geom_bar(aes(x = Ensayo, y = N_total),
+           stat = 'identity', fill = 'deepskyblue', col = 'dodgerblue4', width = .55) +
+  labs(title = 'Ensayos clínicos realizados con Janssen\n', x = '', y = '') +
+  theme_hc()
+
+# Per-hospital competitor analysis
+hospitales_Janssen <- unique(Janssen_datos$Hospital)
+
+for (hosp in hospitales_Janssen) {
+  datos_competencia   <- datos %>% filter(Hospital == hosp)
+  Janssen_competencia <- data.frame(table(datos_competencia$Sponsor))
+  colnames(Janssen_competencia) <- c("Empresa", "Nº")
+
+  # Bar chart of all sponsors at this hospital
+  ggplot(data = Janssen_competencia) +
+    geom_bar(aes(x = Empresa, y = Nº),
+             stat = 'identity', fill = 'tan4', width = 0.65) +
+    coord_flip() +
+    ggtitle(paste("Intervenciones de empresas junto a Jansen\nen", hosp)) +
+    theme_fivethirtyeight(base_size = 8) +
+    ggsave(paste(hosp, "bar.png", sep = "_"))
+
+  # Pie chart: Janssen vs. competition share
+  dato_janssen    <- Janssen_competencia$Nº[which(Janssen_competencia$Empresa == "Janssen")[1]]
+  dato_competencia <- sum(Janssen_competencia$Nº) - dato_janssen
+  janssen_porc    <- round(dato_janssen * 100 / (dato_janssen + dato_competencia))
+  Resumen_Hospital <- data.frame(
+    Resumen = c("Janssen", "Competencia"),
+    Total   = c(dato_janssen, dato_competencia)
+  )
+  ggplot(Resumen_Hospital) +
+    geom_bar(aes(x = "", y = Total, fill = Resumen), col = 'white', stat = "identity") +
+    coord_polar(theta = "y", start = 0) +
+    theme_void() +
+    ggtitle(paste("Resumen de intervenciones de empresas en\n", hosp)) +
+    ggsave(paste(hosp, "pie.png", sep = "_"))
+}
+```
+
+### Key Insights Visualised
+
+- **Janssen has a presence in 23 distinct hospitals** across Spain, from major centres in Madrid and Barcelona to regional hospitals.
+- At each hospital, bar charts reveal the **competitive density** — how many other sponsors are simultaneously running trials at the same centre.
+- Pie charts express **Janssen's market share** per hospital, flagging centres where it is dominant and those where competitors have a stronger relative presence.
+
+## Files
+
+| File | Description |
+|---|---|
+| `reto_trialing.csv` | Raw competition data — 3,591 rows, 4 columns; mixed capitalisation, combined hospital/city field, NaN IDs |
+| `clean_datos Trialing.csv` | Cleaned output — 3,591 rows, 5 columns; standardised capitalisation, split city column, integer IDs |

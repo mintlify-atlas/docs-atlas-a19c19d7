@@ -1,0 +1,164 @@
+---
+title: "Hotel Review Sentiment Analysis with Python"
+sidebarTitle: "Sentiment Analysis"
+description: "Analyze sentiment polarity of hotel reviews using Python NLP tools, segmented by comment type and hotel star rating, with word cloud visualization."
+---
+
+This notebook analyzes a dataset of **20,491 TripAdvisor hotel reviews** to classify each review as positive, negative, or neutral based on its polarity score, and then visualizes the most frequently used words per sentiment category and per hotel star rating class. The analysis combines `TextBlob` for sentiment scoring with the `wordcloud` library for visualization, revealing which words dominate discourse at different quality levels.
+
+## Overview
+
+| Property | Detail |
+|---|---|
+| **Objective** | Classify hotel reviews by sentiment and identify the most common words per sentiment category and hotel class |
+| **Dataset** | `tripadvisor_hotel_reviews.csv` — 20,491 rows with two columns: `Review` (text) and `Rating` (1–5 stars) |
+| **Techniques** | Sentiment polarity scoring, comment-type segmentation (positive / negative / neutral), hotel-class segmentation, word cloud generation |
+| **Libraries** | `pandas`, `matplotlib`, `seaborn`, `numpy`, `textblob`, `wordcloud`, `ipywidgets` |
+
+The dataset contains no null values and covers ratings from 1 to 5 stars. Reviews at 5 stars are the most numerous, while 1-star reviews are the least common.
+
+## Methodology
+
+<Steps>
+  <Step title="Load and Explore Hotel Review Data">
+    The dataset is loaded from `tripadvisor_hotel_reviews.csv` using `pandas`. Basic exploration confirms 20,491 instances, two columns (`Review` as `object`, `Rating` as `int64`), no null values, and five distinct rating classes (1–5).
+
+    ```python
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+
+    comentarios = pd.read_csv("tripadvisor_hotel_reviews.csv")
+    print("Nº de instancias:", comentarios.shape[0])
+    comentarios.dtypes
+    ```
+  </Step>
+
+  <Step title="Classify Sentiment Polarity">
+    Each review is scored using `TextBlob`'s `sentiment.polarity` method, which returns a float in the range `[-1, 1]`. Reviews are then classified into three categories based on thresholds:
+
+    - **Negative**: polarity ≤ −0.01
+    - **Neutral**: −0.01 < polarity < 0.10
+    - **Positive**: polarity ≥ 0.10
+
+    ```python
+    from textblob import TextBlob
+
+    def analisis_sentimiento(df):
+        blob = TextBlob(df.Review)
+        return blob.sentiment.polarity
+
+    comentarios["SA_ranking"] = comentarios.apply(analisis_sentimiento, axis=1)
+
+    def sentiment(ratio):
+        if ratio <= -0.01:
+            return "negative"
+        elif ratio >= 0.10:
+            return "positive"
+        else:
+            return "neutral"
+
+    comentarios["Sentiment"] = comentarios["SA_ranking"].apply(lambda x: sentiment(x))
+    ```
+
+    After classification the distribution is:
+    - Positive: **17,664** reviews
+    - Neutral: **1,562** reviews
+    - Negative: **1,265** reviews
+
+    Roughly **1 in every 20 reviews is negative**.
+  </Step>
+
+  <Step title="Generate Word Clouds by Comment Type">
+    Reviews are grouped by sentiment label and the text for each group is concatenated. A `WordCloud` object is then fitted to each group to produce a visualization of the most frequent terms.
+
+    ```python
+    from wordcloud import WordCloud
+
+    for sentiment_label in ["positive", "negative", "neutral"]:
+        text = " ".join(
+            comentarios[comentarios["Sentiment"] == sentiment_label]["Review"]
+        )
+        wc = WordCloud(width=800, height=400, background_color="white").generate(text)
+        plt.imshow(wc, interpolation="bilinear")
+        plt.axis("off")
+        plt.title(f"Word Cloud — {sentiment_label}")
+        plt.show()
+    ```
+  </Step>
+
+  <Step title="Generate Word Clouds by Hotel Star Category">
+    The same word-cloud process is repeated, but reviews are now grouped by their `Rating` value (1–5). This exposes vocabulary differences across hotel quality tiers.
+
+    ```python
+    for stars in [1, 2, 3, 4, 5]:
+        text = " ".join(
+            comentarios[comentarios["Rating"] == stars]["Review"]
+        )
+        wc = WordCloud(width=800, height=400, background_color="white").generate(text)
+        plt.imshow(wc, interpolation="bilinear")
+        plt.axis("off")
+        plt.title(f"Word Cloud — {stars}-Star Hotels")
+        plt.show()
+    ```
+  </Step>
+
+  <Step title="Visualize and Compare Results">
+    A bar chart is produced showing the count of positive, negative, and neutral reviews for each star rating. An `ipywidgets` interactive widget also allows on-the-fly exploration of word clouds filtered by sentiment label and hotel class.
+  </Step>
+</Steps>
+
+## Key Techniques
+
+### Sentiment Scoring with TextBlob
+
+`TextBlob` wraps the `Pattern` library's NLP pipeline and exposes a `.sentiment.polarity` property that returns values between −1 (most negative) and +1 (most positive).
+
+```python
+from textblob import TextBlob
+
+review = "absolutely wonderful hotel, steps away from Times Square"
+blob = TextBlob(review)
+print(blob.sentiment.polarity)   # e.g. 0.75
+```
+
+### Word Cloud Generation
+
+The `wordcloud` library renders the most frequent terms in a visually scaled layout. Common stop words are filtered automatically.
+
+```python
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
+positive_text = " ".join(
+    comentarios[comentarios["Sentiment"] == "positive"]["Review"]
+)
+
+wc = WordCloud(
+    width=800,
+    height=400,
+    background_color="white",
+    max_words=100
+).generate(positive_text)
+
+plt.figure(figsize=(10, 5))
+plt.imshow(wc, interpolation="bilinear")
+plt.axis("off")
+plt.show()
+```
+
+## Results
+
+The analysis surfaces several clear patterns:
+
+- **Positive reviews** are dominated by words like *great*, *wonderful*, *clean*, *staff*, and *location*.
+- **Negative reviews** feature words like *terrible*, *dirty*, *rude*, *disappointing*, and *worst*.
+- **Neutral reviews** fall in between, with more factual language and fewer strong adjectives.
+- Segmented by hotel class, **5-star hotels** produce word clouds centered on luxury terms (*beautiful*, *elegant*, *perfect*), whereas **1- and 2-star hotels** surface complaints about facilities and service.
+- The most positively scored review in the dataset comes from a **5-star hotel** ("absolutely wonderful…"), while the most negatively scored comes from a **1-star hotel**.
+- The proportion of negative sentiment grows sharply for hotels rated 1–2 stars and drops to near zero for 4–5 star properties.
+
+<Tip>
+For a more advanced NLP pipeline on business reviews—including LDA topic discovery and competitor benchmarking—see [Review Analysis](/cases/nlp/review-analysis).
+</Tip>

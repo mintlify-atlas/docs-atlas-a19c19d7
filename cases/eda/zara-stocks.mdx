@@ -1,0 +1,96 @@
+---
+title: "Inditex (Zara) Stock Price Analysis"
+sidebarTitle: "Zara Stocks"
+description: "Explore Inditex (ITX) historical stock price data with time-series analysis, trend detection, and return calculations in Python."
+---
+
+This notebook presents an investment scenario built around Inditex (ticker: ITX) — the parent company of Zara — using historical daily stock prices to simulate a systematic investment strategy. A hypothetical investor commits **€50 per month** to ITX shares starting from the company's first trading day (23 May 2001), purchasing at the opening price on the last Thursday of each month (or the next available trading day). All shares are sold on 28 December 2017 at the closing price, with a 2 % broker fee applied to each purchase. The notebook calculates the final portfolio value and total return, while also performing exploratory time-series analysis of the full price history.
+
+## Dataset
+
+The source file is `stocks-ITX.csv` (semicolon-delimited), containing **4,218 rows** — one per trading day — and **3 columns**.
+
+| Column | Type | Description |
+|---|---|---|
+| `Fecha` | object → datetime64 | Trading date in Spanish abbreviated format (e.g. `"23-may-2001"`) |
+| `Cierre` | float64 | Closing price in euros |
+| `Apertura` | float64 | Opening price in euros |
+
+The raw file is sorted in reverse chronological order (newest first). The dataset spans from **23 May 2001** (ITX IPO date) through **28 December 2017**, covering approximately 16.6 years of trading.
+
+## Analysis
+
+### Data Loading and Cleaning
+
+```python
+import pandas as pd
+import datetime as dt
+import matplotlib.pyplot as plt
+plt.style.use('bmh')
+import numpy as np
+
+# Allow full display of all rows during exploration
+pd.set_option('display.max_rows', None)
+
+# Load the CSV (semicolon-delimited)
+data = pd.read_csv('stocks-ITX.csv', sep=';')
+
+# Reverse the chronological order so the earliest date is first
+data = data.iloc[::-1, :].reset_index(drop=True)
+```
+
+### Date Parsing
+
+The `Fecha` column uses Spanish abbreviated month names (`ene`, `feb`, `mar`, etc.), which are not directly parseable by pandas. The notebook replaces each abbreviated Spanish month name with its two-digit numeric equivalent using `str.replace`, then converts the column to `datetime64`:
+
+```python
+meses_en_esp = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+                'jul', 'ago', 'set', 'oct', 'nov', 'dic']
+for index, mes in enumerate(meses_en_esp):
+    data['Fecha'] = data['Fecha'].str.replace(mes, str(index + 1).zfill(2), regex=False)
+
+data['Fecha'] = pd.to_datetime(data['Fecha'])
+```
+
+### Feature Engineering
+
+Three new columns are derived from the parsed date:
+
+```python
+data['Dia_semana'] = data['Fecha'].dt.day_name()   # e.g. "Wednesday"
+data['Mes']        = data['Fecha'].dt.month         # integer 1–12
+data['Año']        = data['Fecha'].dt.year          # integer 2001–2017
+```
+
+### Trading Day Distribution
+
+A horizontal bar chart of `Dia_semana.value_counts()` confirms that the dataset contains no weekend records, with trading days distributed across all five weekdays. September has the highest number of trading-day records (490), while February and December have the fewest (313 each).
+
+### Price Time-Series Visualisation
+
+A full close-price time-series chart is produced to visualise the growth of ITX from its IPO price (~€3.60) through its peak and subsequent movements up to late 2017 (~€29).
+
+### Investment Simulation
+
+The core calculation logic:
+
+1. **Identify paydays** — for each month between May 2001 and December 2017, the last Thursday is found.
+2. **Find the next trading day** — if the last Thursday is not a trading day (market holiday), the next available date is selected.
+3. **Purchase shares** — €50 is invested at the opening price of the selected day, minus the 2 % broker fee (effective investment: €49 per transaction).
+4. **Accumulate fractional shares** — the broker allows fractional share purchases, so exactly €49 / `Apertura` shares are acquired each month.
+5. **Sell all shares** — the total accumulated shares are sold at the closing price on 28 December 2017 (`Cierre = 29.17`).
+6. **Calculate net return** — the final portfolio value is compared to the total capital invested.
+
+## Key Visualisations
+
+- **Full daily close-price series** — illustrates the extraordinary long-term growth of ITX from IPO (May 2001) to December 2017.
+- **Trading day frequency bar chart** — confirms clean weekday-only data with no weekend artefacts.
+- **Monthly investment timeline** — marks each purchase date on the price chart, showing the dollar-cost-averaging effect over the 16-year period.
+
+## Findings
+
+- **ITX went public at ~€3.60** on 23 May 2001 and reached ~€29.17 at the close on 28 December 2017, representing approximately **8× price appreciation** over 16.6 years.
+- **All five weekdays appear** in the trading record; weekend entries are absent, confirming clean data.
+- **September is the most data-rich month** (490 records), likely because it has the fewest public holidays in the Spanish trading calendar.
+- The 2 % broker fee applied at each monthly purchase meaningfully reduces total return compared to a zero-fee scenario — a key parameter sensitivity highlighted by the notebook's simulation design.
+- **Dollar-cost averaging** over the full period smooths out the impact of the significant price volatility visible in the mid-2000s and post-2008 periods.

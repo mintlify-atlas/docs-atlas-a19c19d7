@@ -1,0 +1,756 @@
+---
+title: "Barcelona Traffic Accidents: Full MySQL Pipeline"
+sidebarTitle: "Barcelona Accidents"
+description: "End-to-end MySQL data pipeline analyzing 150 000+ Barcelona traffic accidents (2010–2025): schema design, bulk loading, custom UDFs, semantic views, and 8 analysis queries."
+---
+
+This project builds a complete MySQL data pipeline for analyzing over 150,000 traffic accidents recorded in Barcelona between 2010 and 2025. Five Python scripts automate every stage of the process — from creating the database schema and bulk-loading CSV data, to defining reusable MySQL functions, generating semantic views, and running eight analytical queries that surface insights about dangerous streets, accident types, victim demographics, and fatality trends.
+
+## Architecture
+
+The pipeline moves data through five discrete stages:
+
+```
+CSV Files → MySQL Database → Custom Functions → Semantic Views → Analysis Queries
+```
+
+| Stage | Script | Purpose |
+|-------|--------|---------|
+| Schema | `01_schema.py` | Creates the `AccidentesBCN` database and 4 tables |
+| Loading | `02_load_staging.py` | Reads CSVs, cleans data, inserts 150 K+ rows in batches |
+| Functions | `03_functions.py` | Defines 3 custom MySQL UDFs for categorization |
+| Views | `04_semantic_views.py` | Creates `vista_accidentes_mortales` for fatal records |
+| Analysis | `05_analysis_queries.py` | Runs 8 queries and prints formatted results |
+
+## Prerequisites
+
+Before running the pipeline, make sure the following are installed and available on your system.
+
+**Python 3.12+**
+
+```bash
+python --version
+```
+
+**MySQL 8.0 (or MariaDB)**
+
+```bash
+mysql --version
+```
+
+**Python libraries**
+
+```bash
+pip install mysql-connector-python pandas
+```
+
+## Data Files
+
+All four source files live in the `Archivos/` subfolder. The pipeline expects them at exactly these relative paths:
+
+| File | Table | Records | Description |
+|------|-------|---------|-------------|
+| `Archivos/causas.csv` | `Causas` | ~38,000 | Primary accidents table — date, time, street, district, coordinates |
+| `Archivos/personas.csv` | `Personas` | ~85,000 | Victims — sex, age, person type, victimization status |
+| `Archivos/tipologia.csv` | `Tipologia` | ~38,000 | Accident types (e.g., *Abast*, *Atropellament*) |
+| `Archivos/vehiculos.csv` | `Vehiculos` | ~72,000 | Vehicles involved — type, model, brand, license class |
+
+## Running the Pipeline
+
+### Option 1 — Automated (recommended)
+
+A batch script runs all five scripts in sequence:
+
+```powershell
+# PowerShell
+.\run_all.bat
+```
+
+```cmd
+:: CMD
+run_all.bat
+```
+
+### Option 2 — Step by Step
+
+<Steps>
+  <Step title="Create the schema">
+    Creates the `AccidentesBCN` database and all four tables. Runs in about 1 second.
+
+    ```bash
+    python 01_schema.py
+    ```
+
+    Expected output:
+    ```
+    ✓ Base de datos 'AccidentesBCN' creada
+    ✓ Tabla 'Causas' creada
+    ✓ Tabla 'Personas' creada
+    ✓ Tabla 'Tipologia' creada
+    ✓ Tabla 'Vehiculos' creada
+    ```
+  </Step>
+
+  <Step title="Load the data">
+    Reads the four CSV files and inserts all records in batches of 4,000. Expect 2–3 minutes.
+
+    ```bash
+    python 02_load_staging.py
+    ```
+
+    Expected output:
+    ```
+    Cargando datos de Archivos/causas.csv a la tabla Causas...
+      ✓ 38000 registros insertados en Causas
+
+    Cargando datos de Archivos/personas.csv a la tabla Personas...
+      ✓ 85000 registros insertados en Personas
+
+    Cargando datos de Archivos/tipologia.csv a la tabla Tipologia...
+      ✓ 38000 registros insertados en Tipologia
+
+    Cargando datos de Archivos/vehiculos.csv a la tabla Vehiculos...
+      ✓ 72000 registros insertados en Vehiculos
+    ```
+  </Step>
+
+  <Step title="Create custom functions">
+    Defines the three MySQL UDFs and runs built-in test cases to verify correctness.
+
+    ```bash
+    python 03_functions.py
+    ```
+  </Step>
+
+  <Step title="Create semantic views">
+    Creates `vista_accidentes_mortales` and prints a 30-row random sample plus a summary by day of the week.
+
+    ```bash
+    python 04_semantic_views.py
+    ```
+  </Step>
+
+  <Step title="Run analysis queries">
+    Executes all 8 analytical queries and prints formatted tables. Takes 10–15 seconds.
+
+    ```bash
+    python 05_analysis_queries.py
+    ```
+  </Step>
+</Steps>
+
+## Database Schema
+
+`01_schema.py` creates the `AccidentesBCN` database and drops/recreates all four tables on every run, so it is safe to re-execute. Each table shares `Num_expediente` as the join key and carries an index on that column.
+
+### Causas (primary accidents table)
+
+```sql
+CREATE TABLE Causas (
+    id                        INT AUTO_INCREMENT PRIMARY KEY,
+    Num_expediente            VARCHAR(50),
+    Nom_distrito              VARCHAR(30),
+    Nom_barrio                VARCHAR(30),
+    Nom_calle                 VARCHAR(50),
+    Cod_postal                VARCHAR(15),
+    Descripcion_dia_semana    VARCHAR(20),
+    Descripcion_tipo_dia      VARCHAR(20),
+    Ano                       INTEGER,
+    Mes_ano                   INTEGER,
+    Nom_mes                   VARCHAR(10),
+    Dia_mes                   VARCHAR(2),
+    Hora_dia                  VARCHAR(2),
+    Descripcion_turno         VARCHAR(20),
+    Descripcion_causa_mediata VARCHAR(50),
+    Coordenada_X              FLOAT,
+    Coordenada_Y              FLOAT,
+    INDEX idx_num_expediente (Num_expediente)
+);
+```
+
+### Personas (victims)
+
+```sql
+CREATE TABLE Personas (
+    id                          INT AUTO_INCREMENT PRIMARY KEY,
+    Num_expediente              VARCHAR(50),
+    Descripcion_sexo            VARCHAR(10),
+    Descripcion_tipos_persona   VARCHAR(20),
+    Edad                        VARCHAR(10),
+    Descripcion_victimizacion   VARCHAR(20),
+    INDEX idx_num_expediente (Num_expediente)
+);
+```
+
+### Tipologia (accident types)
+
+```sql
+CREATE TABLE Tipologia (
+    id                             INT AUTO_INCREMENT PRIMARY KEY,
+    Num_expediente                 VARCHAR(50),
+    Descripcion_tipos_accidente    VARCHAR(20),
+    INDEX idx_num_expediente (Num_expediente)
+);
+```
+
+### Vehiculos (vehicles)
+
+```sql
+CREATE TABLE Vehiculos (
+    id                          INT AUTO_INCREMENT PRIMARY KEY,
+    Num_expediente              VARCHAR(50),
+    Descripcion_tipos_vehiculo  VARCHAR(20),
+    Descripcion_modelo          VARCHAR(20),
+    Descripcion_marca           VARCHAR(20),
+    Descripcion_color           VARCHAR(20),
+    Descripcion_carnet          VARCHAR(20),
+    Antiguedad_carnet           INTEGER,
+    INDEX idx_num_expediente (Num_expediente)
+);
+```
+
+## Data Loading
+
+`02_load_staging.py` truncates each table before inserting, so repeated runs always produce a clean state. Records are inserted in batches of 4,000 using `cursor.executemany()`, with a commit after every batch.
+
+**Data transformations applied before insertion:**
+
+- **European decimal format** — `Coordenada_X` and `Coordenada_Y` store coordinates with commas as the decimal separator in the raw CSV; the script replaces commas with dots before coercing to `float`.
+- **NumPy → Python types** — pandas returns NumPy scalars (`numpy.int64`, `numpy.float64`) that MySQL Connector cannot serialize; the `convert_value()` helper calls `.item()` to convert them to native Python types.
+- **NaN → NULL** — `df.where(pd.notna(df), None)` replaces all `NaN` values with `None`, which the connector maps to SQL `NULL`.
+
+```python
+def convert_value(val):
+    if val is None or pd.isna(val):
+        return None
+    if hasattr(val, 'item'):   # numpy scalar → Python native
+        return val.item()
+    return val
+```
+
+**Estimated time:** 2–3 minutes for all four tables.
+
+## Custom MySQL Functions
+
+`03_functions.py` defines three deterministic MySQL stored functions. Each is dropped and recreated on every run, and the script executes built-in test queries to verify behavior immediately after creation.
+
+### `categoria_edad(edad INT)`
+
+Maps a numeric age to a Spanish age-group label. Handles `NULL` input as `'Desconocido'`.
+
+```sql
+CREATE FUNCTION categoria_edad(edad INT)
+RETURNS VARCHAR(20)
+DETERMINISTIC
+BEGIN
+    DECLARE categoria VARCHAR(20);
+
+    IF edad IS NULL THEN
+        SET categoria = 'Desconocido';
+    ELSEIF edad >= 0  AND edad <= 5  THEN SET categoria = 'Bebé';
+    ELSEIF edad >= 6  AND edad <= 12 THEN SET categoria = 'Niño';
+    ELSEIF edad >= 13 AND edad <= 17 THEN SET categoria = 'Adolescente';
+    ELSEIF edad >= 18 AND edad <= 35 THEN SET categoria = 'Joven';
+    ELSEIF edad >= 36 AND edad <= 60 THEN SET categoria = 'Adulto';
+    ELSEIF edad >= 61 AND edad <= 80 THEN SET categoria = 'Mayor';
+    ELSEIF edad >= 81               THEN SET categoria = 'Anciano';
+    ELSE                                 SET categoria = 'Desconocido';
+    END IF;
+
+    RETURN categoria;
+END
+```
+
+| Age | Category |
+|-----|----------|
+| 0–5 | Bebé |
+| 6–12 | Niño |
+| 13–17 | Adolescente |
+| 18–35 | Joven |
+| 36–60 | Adulto |
+| 61–80 | Mayor |
+| 81+ | Anciano |
+| NULL | Desconocido |
+
+**Usage example:**
+
+```sql
+SELECT categoria_edad(25) AS categoria;
+-- Result: 'Joven'
+
+SELECT categoria_edad(72) AS categoria;
+-- Result: 'Mayor'
+```
+
+---
+
+### `tipo_vehiculo(descr VARCHAR(50))`
+
+Classifies the raw Catalan/Spanish vehicle description string into a normalized Spanish category using `LIKE` pattern matching.
+
+```sql
+CREATE FUNCTION tipo_vehiculo(descr VARCHAR(50))
+RETURNS VARCHAR(20)
+DETERMINISTIC
+BEGIN
+    IF descr IS NULL OR descr = 'Desconegut' OR descr = 'Sense Informar' THEN
+        RETURN 'Otros';
+    ELSEIF descr LIKE '%Turisme%' OR descr LIKE '%Turismo%'
+        OR descr LIKE '%Pick-up%' OR descr LIKE '%terreny%'
+        OR descr LIKE '%terreno%' THEN
+        RETURN 'Coche';
+    ELSEIF descr LIKE '%Furgoneta%' OR descr LIKE '%Autocaravana%' THEN
+        RETURN 'Camper';
+    ELSEIF descr LIKE 'Taxi%' THEN
+        RETURN 'Taxi';
+    ELSEIF descr LIKE '%Motocicleta%' OR descr LIKE '%Ciclomotor%' THEN
+        RETURN 'Motocicleta';
+    ELSEIF descr LIKE '%Bicicleta%' THEN
+        RETURN 'Bicicleta';
+    ELSEIF descr LIKE 'Autob%' OR descr LIKE 'Autocar%' OR descr LIKE 'Microb%' THEN
+        RETURN 'Bus';
+    ELSEIF descr LIKE '%Tren%' OR descr LIKE '%ranv%' OR descr LIKE '%tramvia%' THEN
+        RETURN 'Tren';
+    ELSEIF descr LIKE '%Tracto%' THEN
+        RETURN 'Tractor';
+    ELSEIF descr LIKE '%Cami%' THEN
+        RETURN 'Camión';
+    ELSEIF descr LIKE '%Maquin%' THEN
+        RETURN 'Maquinaria';
+    ELSEIF descr LIKE '%mbul%' THEN
+        RETURN 'Ambulancia';
+    ELSEIF descr LIKE '%ricicle%' OR descr LIKE '%uadriciclo%' THEN
+        RETURN 'Triciclo';
+    ELSEIF descr LIKE 'Carro%' THEN
+        RETURN 'Carro';
+    ELSE
+        RETURN 'Otros';
+    END IF;
+END
+```
+
+**Usage example:**
+
+```sql
+SELECT tipo_vehiculo('Turisme') AS tipo;
+-- Result: 'Coche'
+
+SELECT tipo_vehiculo('Motocicleta >50cc') AS tipo;
+-- Result: 'Motocicleta'
+
+SELECT tipo_vehiculo('Autobús de línia') AS tipo;
+-- Result: 'Bus'
+```
+
+---
+
+### `estado_persona(descripcion VARCHAR(50))`
+
+Maps the raw victimization description (in Catalan) to a Spanish severity label using three `LIKE` checks. Any value that doesn't match `Ferit` or `Mort` or contain `Il`/`il` is classified as `'Desconocido'`.
+
+```sql
+CREATE FUNCTION estado_persona(descripcion VARCHAR(50))
+RETURNS VARCHAR(20)
+DETERMINISTIC
+BEGIN
+    IF    descripcion LIKE '%Ferit%' THEN RETURN 'Herido';
+    ELSEIF descripcion LIKE '%Mort%' THEN RETURN 'Muerto';
+    ELSEIF descripcion LIKE '%Il%'
+        OR descripcion LIKE '%il%'   THEN RETURN 'Ileso';
+    ELSE                                  RETURN 'Desconocido';
+    END IF;
+END
+```
+
+| Raw description | Mapped state |
+|----------------|--------------|
+| `Ferit lleu` (minor injury) | `Herido` |
+| `Ferit greu` (serious injury) | `Herido` |
+| `Mort` (deceased) | `Muerto` |
+| `Il·lès` (uninjured) | `Ileso` |
+| Unknown / other | `Desconocido` |
+
+**Usage example:**
+
+```sql
+SELECT estado_persona('Ferit lleu') AS estado;
+-- Result: 'Herido'
+
+SELECT estado_persona('Mort') AS estado;
+-- Result: 'Muerto'
+```
+
+## Semantic Views
+
+`04_semantic_views.py` creates a single view — `vista_accidentes_mortales` — that exposes only records where the victim died, with human-readable column names and formatted values.
+
+### `vista_accidentes_mortales`
+
+The view joins `Causas`, `Personas`, and `Tipologia` on `Num_expediente`, applies `estado_persona()` to filter for `'Muerto'`, and formats the output for direct reporting:
+
+```sql
+CREATE VIEW vista_accidentes_mortales AS
+WITH accidentes AS (
+    SELECT
+        CAST(Ano AS UNSIGNED)     AS Ano,
+        CAST(Mes_ano AS UNSIGNED) AS Mes_ano,
+        CAST(Dia_mes AS UNSIGNED) AS Dia_mes,
+        CAST(Hora_dia AS UNSIGNED) AS Hora_dia,
+        CONCAT(LPAD(Dia_mes, 2, '0'), '-',
+               LPAD(Mes_ano, 2, '0'), '-', Ano) AS Fecha,
+        LPAD(Hora_dia, 2, 0)     AS Hora,
+        Descripcion_dia_semana,
+        Nom_barrio                AS Barrio,
+        Descripcion_sexo          AS Sexo,
+        Descripcion_tipos_persona AS Persona,
+        Edad,
+        estado_persona(Descripcion_victimizacion) AS Estado,
+        Descripcion_tipos_accidente
+    FROM causas
+    INNER JOIN personas  ON causas.Num_expediente = personas.Num_expediente
+    INNER JOIN tipologia ON causas.Num_expediente = tipologia.Num_expediente
+)
+SELECT
+    CONCAT(Fecha, ' ', Hora, ':00:00')                     AS `Fecha y hora`,
+    Descripcion_dia_semana                                 AS `Día`,
+    CONCAT(UPPER(LEFT(Barrio, 1)), SUBSTRING(Barrio, 2))   AS Barrio,
+    Persona,
+    CASE WHEN Sexo LIKE 'H%' THEN 'Hombre' ELSE 'Mujer' END AS Sexo,
+    CAST(Edad AS SIGNED)                                   AS Edad,
+    Descripcion_tipos_accidente                            AS `Tipo de accidente`
+FROM accidentes
+WHERE Estado = 'Muerto'
+ORDER BY Ano, Mes_ano, Dia_mes, Hora_dia;
+```
+
+**Transformations applied:**
+
+- Dates are formatted as `DD-MM-YYYY HH:00:00`
+- Neighborhood names are title-cased (`CONCAT(UPPER(LEFT(...)), SUBSTRING(...))`)
+- Sex codes (`H*`) are mapped to `'Hombre'`; all others to `'Mujer'`
+- Only records where `estado_persona()` returns `'Muerto'` are included
+
+**Statistics from the view:**
+
+| Metric | Value |
+|--------|-------|
+| Total fatalities | **453** |
+| Average age | **48 years** |
+| Male fatalities | 355 **(78.4%)** |
+| Female fatalities | 98 **(21.6%)** |
+
+**Sample query:**
+
+```sql
+SELECT * FROM vista_accidentes_mortales
+WHERE Barrio = 'El Raval'
+ORDER BY `Fecha y hora` DESC
+LIMIT 10;
+```
+
+## Analysis Queries
+
+`05_analysis_queries.py` runs eight queries against `AccidentesBCN`, printing formatted results to the console. All queries use `DISTINCT(Num_expediente)` when counting accidents to avoid double-counting incidents that appear in multiple joined rows.
+
+<AccordionGroup>
+  <Accordion title="Query 1 — Top 10 most dangerous streets">
+    Groups by `Nom_calle`, counts distinct incident IDs, and returns the ten streets with the most accidents.
+
+    ```sql
+    SELECT
+        Nom_calle                          AS `Avenida/Calle`,
+        COUNT(DISTINCT(Num_expediente))    AS `Número de incidentes`
+    FROM causas
+    GROUP BY Nom_calle
+    HAVING Nom_calle IS NOT NULL
+    ORDER BY `Número de incidentes` DESC
+    LIMIT 10;
+    ```
+
+    **Key results:**
+
+    | Street | Incidents |
+    |--------|-----------|
+    | Corts Catalanes | 6,438 |
+    | Diagonal | 5,439 |
+    | Meridiana | 2,417 |
+    | Litoral (Llobregat) | 2,298 |
+    | Aragó | 2,007 |
+
+    **Insight:** Barcelona's major urban arteries concentrate the highest accident counts.
+  </Accordion>
+
+  <Accordion title="Query 2 — Top 10 most common accident types">
+    Groups by `Descripcion_tipos_accidente` and counts distinct incidents per type.
+
+    ```sql
+    SELECT
+        Descripcion_tipos_accidente        AS `Tipo de accidente`,
+        COUNT(DISTINCT(Num_expediente))    AS `Número de incidentes`
+    FROM tipologia
+    GROUP BY `Tipo de accidente`
+    HAVING `Tipo de accidente` IS NOT NULL
+    ORDER BY `Número de incidentes` DESC
+    LIMIT 10;
+    ```
+
+    **Key results:**
+
+    | Accident type | Incidents |
+    |--------------|-----------|
+    | Abast (rear-end) | 29,880 |
+    | Col·lisió lateral | 18,826 |
+    | Atropellament (pedestrian) | 17,012 |
+    | Col·lisió fronto-lat | 15,658 |
+
+    **Insight:** Rear-end collisions (*Abast*) are by far the most common accident type.
+  </Accordion>
+
+  <Accordion title="Query 3 — Accidents with most people involved">
+    Uses a CTE to rank incidents by victim count, then joins back to `Causas` for location and time data.
+
+    ```sql
+    WITH accidentes_personas AS (
+        SELECT
+            Num_expediente        AS N_incidente,
+            COUNT(Num_expediente) AS total_personas
+        FROM personas
+        GROUP BY Num_expediente
+        ORDER BY total_personas DESC
+        LIMIT 10
+    )
+    SELECT
+        CONCAT(LPAD(Dia_mes,2,'0'),'-',LPAD(Mes_ano,2,'0'),'-',Ano) AS Fecha,
+        CONCAT(LPAD(Hora_dia,2,'0'),':00:00')                        AS Hora,
+        Nom_calle                                                     AS `Avenida/Calle`,
+        total_personas                                                AS `Personas involucradas`
+    FROM accidentes_personas
+    LEFT JOIN causas ON causas.Num_expediente = accidentes_personas.N_incidente;
+    ```
+
+    **Key results:**
+
+    | Date | Time | Street | People |
+    |------|------|--------|--------|
+    | 03-03-2025 | 14:00:00 | Diagonal | **46** |
+    | 15-06-2023 | 17:00:00 | València | 25 |
+    | 20-06-2019 | 09:00:00 | Espanya | 21 |
+
+    **Insight:** The single largest incident involved 46 people on Diagonal in March 2025.
+  </Accordion>
+
+  <Accordion title="Query 4 — Top 10 most dangerous days of the year">
+    Groups incidents by formatted date and orders by accident count descending.
+
+    ```sql
+    SELECT
+        CONCAT(LPAD(Dia_mes,2,'0'),'-',LPAD(Mes_ano,2,'0'),'-',Ano) AS Fecha,
+        COUNT(DISTINCT(Num_expediente))                               AS `Número de accidentes`
+    FROM causas
+    GROUP BY Fecha
+    ORDER BY `Número de accidentes` DESC
+    LIMIT 10;
+    ```
+
+    Returns the ten calendar dates with the highest single-day accident counts across the full 2010–2025 period.
+  </Accordion>
+
+  <Accordion title="Query 5 — Victims by vehicle type and time slot">
+    Joins all three tables, applies `tipo_vehiculo()` and `estado_persona()`, and pivots the result into four time-slot columns.
+
+    ```sql
+    SELECT
+        tipo_vehiculo(Descripcion_tipos_vehiculo) AS `Tipo de vehículo`,
+        CASE
+            WHEN Hora_dia BETWEEN 0  AND 5  THEN 'Madrugada (0-5h)'
+            WHEN Hora_dia BETWEEN 6  AND 13 THEN 'Mañana (6-13h)'
+            WHEN Hora_dia BETWEEN 14 AND 20 THEN 'Tarde (14-20h)'
+            ELSE                                 'Noche (21-23h)'
+        END AS `Franja horaria`,
+        CAST(SUM(CASE WHEN estado_persona(Descripcion_victimizacion) = 'Muerto'      THEN 1 ELSE 0 END) AS SIGNED) AS Muertos,
+        CAST(SUM(CASE WHEN estado_persona(Descripcion_victimizacion) = 'Herido'      THEN 1 ELSE 0 END) AS SIGNED) AS Heridos,
+        CAST(SUM(CASE WHEN estado_persona(Descripcion_victimizacion) = 'Ileso'       THEN 1 ELSE 0 END) AS SIGNED) AS Ilesos,
+        CAST(SUM(CASE WHEN estado_persona(Descripcion_victimizacion) = 'Desconocido' THEN 1 ELSE 0 END) AS SIGNED) AS Desconocido
+    FROM Causas
+    INNER JOIN Vehiculos ON Causas.Num_expediente = Vehiculos.Num_expediente
+    INNER JOIN Personas  ON Causas.Num_expediente = Personas.Num_expediente
+    GROUP BY `Tipo de vehículo`, `Franja horaria`
+    ORDER BY `Tipo de vehículo`,
+        FIELD(`Franja horaria`, 'Madrugada (0-5h)', 'Mañana (6-13h)', 'Tarde (14-20h)', 'Noche (21-23h)');
+    ```
+
+    **Key results:**
+
+    | Vehicle | Time slot | Deaths | Injured |
+    |---------|-----------|--------|---------|
+    | Coche | Madrugada (0-5h) | 30 | 9,218 |
+    | Coche | Mañana (6-13h) | 62 | 50,312 |
+    | Coche | **Tarde (14-20h)** | **82** | 66,701 |
+    | Coche | Noche (21-23h) | 20 | 14,535 |
+    | Motocicleta | **Mañana (6-13h)** | **104** | 44,794 |
+
+    **Insight:** Afternoon (14–20h) is the deadliest slot for cars; motorbikes in the morning cause more deaths than cars in the same slot.
+  </Accordion>
+
+  <Accordion title="Query 6 — Victims by year and state">
+    Uses a CTE to aggregate victim counts per year/month/state, then pivots into four state columns grouped by year.
+
+    ```sql
+    WITH total_victimas AS (
+        SELECT
+            Ano AS Año,
+            Mes_ano AS Mes_Numero,
+            Nom_mes AS Mes,
+            estado_persona(Descripcion_victimizacion) AS Estado,
+            COUNT(estado_persona(Descripcion_victimizacion)) AS Total
+        FROM Causas
+        INNER JOIN Personas ON Causas.Num_expediente = Personas.Num_expediente
+        GROUP BY Ano, Nom_mes, Estado
+    )
+    SELECT
+        Año,
+        CAST(SUM(CASE WHEN Estado = 'Ileso'       THEN Total ELSE 0 END) AS SIGNED) AS Ilesos,
+        CAST(SUM(CASE WHEN Estado = 'Herido'      THEN Total ELSE 0 END) AS SIGNED) AS Heridos,
+        CAST(SUM(CASE WHEN Estado = 'Muerto'      THEN Total ELSE 0 END) AS SIGNED) AS Muertos,
+        CAST(SUM(CASE WHEN Estado = 'Desconocido' THEN Total ELSE 0 END) AS SIGNED) AS Desconocido
+    FROM total_victimas
+    GROUP BY Año;
+    ```
+
+    Returns one row per year (2010–2025) showing the annual count of uninjured, injured, dead, and unknown-status victims — useful for tracking safety trends over time.
+  </Accordion>
+
+  <Accordion title="Query 7 — People involved by age category">
+    Applies `categoria_edad()` to the `Edad` column (stripping unknown values with `NULLIF`) and pivots into age-group columns per year and month.
+
+    ```sql
+    WITH total_victimas AS (
+        SELECT
+            Ano AS Año,
+            Mes_ano AS Mes_Numero,
+            Nom_mes AS Mes,
+            categoria_edad(NULLIF(NULLIF(Edad, 'Desconegut'), -1)) AS Categoria,
+            COUNT(categoria_edad(NULLIF(NULLIF(Edad, 'Desconegut'), -1))) AS Total
+        FROM Causas
+        INNER JOIN Personas ON Causas.Num_expediente = Personas.Num_expediente
+        GROUP BY Ano, Mes, Categoria
+    )
+    SELECT
+        Año, Mes,
+        CAST(SUM(CASE WHEN Categoria = 'Bebé'        THEN Total ELSE 0 END) AS SIGNED) AS Bebés,
+        CAST(SUM(CASE WHEN Categoria = 'Niño'        THEN Total ELSE 0 END) AS SIGNED) AS Niños,
+        CAST(SUM(CASE WHEN Categoria = 'Adolescente' THEN Total ELSE 0 END) AS SIGNED) AS Adolescentes,
+        CAST(SUM(CASE WHEN Categoria = 'Adulto'      THEN Total ELSE 0 END) AS SIGNED) AS Adultos,
+        CAST(SUM(CASE WHEN Categoria = 'Mayor'       THEN Total ELSE 0 END) AS SIGNED) AS Mayores,
+        CAST(SUM(CASE WHEN Categoria = 'Anciano'     THEN Total ELSE 0 END) AS SIGNED) AS Ancianos,
+        CAST(SUM(CASE WHEN Categoria = 'Desconocido' THEN Total ELSE 0 END) AS SIGNED) AS Desconocido
+    FROM total_victimas
+    GROUP BY Año, Mes_Numero;
+    ```
+
+    The double `NULLIF` handles two edge cases: the string `'Desconegut'` (Catalan for "unknown") and the sentinel value `-1`.
+  </Accordion>
+
+  <Accordion title="Query 8 — Vehicles involved by year and type">
+    Applies `tipo_vehiculo()` to classify every vehicle record and pivots into 14 category columns grouped by year.
+
+    ```sql
+    WITH total_vehiculos AS (
+        SELECT
+            Ano AS Año,
+            tipo_vehiculo(Descripcion_tipos_vehiculo) AS Categoria,
+            COUNT(tipo_vehiculo(Descripcion_tipos_vehiculo)) AS Total
+        FROM Causas
+        INNER JOIN Vehiculos ON Causas.Num_expediente = Vehiculos.Num_expediente
+        GROUP BY Ano, Categoria
+    )
+    SELECT
+        Año,
+        CAST(SUM(CASE WHEN Categoria = 'Ambulancia'  THEN Total ELSE 0 END) AS SIGNED) AS Ambulancias,
+        CAST(SUM(CASE WHEN Categoria = 'Bicicleta'   THEN Total ELSE 0 END) AS SIGNED) AS Bicicletas,
+        CAST(SUM(CASE WHEN Categoria = 'Bus'         THEN Total ELSE 0 END) AS SIGNED) AS Buses,
+        CAST(SUM(CASE WHEN Categoria = 'Camión'      THEN Total ELSE 0 END) AS SIGNED) AS Camiones,
+        CAST(SUM(CASE WHEN Categoria = 'Camper'      THEN Total ELSE 0 END) AS SIGNED) AS Campers,
+        CAST(SUM(CASE WHEN Categoria = 'Carro'       THEN Total ELSE 0 END) AS SIGNED) AS Carros,
+        CAST(SUM(CASE WHEN Categoria = 'Coche'       THEN Total ELSE 0 END) AS SIGNED) AS Coches,
+        CAST(SUM(CASE WHEN Categoria = 'Maquinaria'  THEN Total ELSE 0 END) AS SIGNED) AS Maquinarias,
+        CAST(SUM(CASE WHEN Categoria = 'Motocicleta' THEN Total ELSE 0 END) AS SIGNED) AS Motocicletas,
+        CAST(SUM(CASE WHEN Categoria = 'Taxi'        THEN Total ELSE 0 END) AS SIGNED) AS Taxis,
+        CAST(SUM(CASE WHEN Categoria = 'Tractor'     THEN Total ELSE 0 END) AS SIGNED) AS Tractores,
+        CAST(SUM(CASE WHEN Categoria = 'Tren'        THEN Total ELSE 0 END) AS SIGNED) AS Trenes,
+        CAST(SUM(CASE WHEN Categoria = 'Triciclo'    THEN Total ELSE 0 END) AS SIGNED) AS Triciclos,
+        CAST(SUM(CASE WHEN Categoria = 'Otros'       THEN Total ELSE 0 END) AS SIGNED) AS Otros
+    FROM total_vehiculos
+    GROUP BY Año;
+    ```
+
+    Returns one row per year with counts for all 14 vehicle categories, making year-over-year trends easy to compare — notably the rising share of bicycles from 2010 onward.
+  </Accordion>
+</AccordionGroup>
+
+## Key Findings
+
+The pipeline surfaces the following headline results from the 2010–2025 dataset:
+
+| Finding | Value |
+|---------|-------|
+| Most dangerous street | **Corts Catalanes** — 6,438 accidents |
+| Most common accident type | **Alcance / Abast** — 29,880 cases |
+| Most dangerous time slot | **Tarde 14–20h** |
+| Total fatalities | **453** over 15 years |
+| Average age of fatalities | **48 years** |
+| Gender split (fatalities) | **78.4% male / 21.6% female** |
+| Largest single incident | 46 people — Diagonal, 03-03-2025 |
+| Bicycle involvement trend | Significant increase since 2010 |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Can't connect to MySQL server">
+    MySQL is not running or the credentials in the script are wrong.
+
+    1. Verify MySQL is running:
+       ```bash
+       mysql -u root -p
+       ```
+    2. Open any of the Python scripts and confirm the `password=` field matches your MySQL root password.
+    3. If using a non-default port or host, update `host=` and add `port=` accordingly.
+  </Accordion>
+
+  <Accordion title="Unknown column in field list">
+    The tables haven't been created yet. You must run `01_schema.py` before any subsequent script:
+
+    ```bash
+    python 01_schema.py
+    ```
+
+    This script drops and recreates all four tables, so it is safe to run again if the schema looks corrupt.
+  </Accordion>
+
+  <Accordion title="File not found: causas.csv">
+    The script looks for CSV files at paths relative to its working directory. Verify the folder structure:
+
+    ```
+    Accidentes de tránsito en Barcelona/
+    └── Archivos/
+        ├── causas.csv
+        ├── personas.csv
+        ├── tipologia.csv
+        └── vehiculos.csv
+    ```
+
+    Run the script from inside the `Accidentes de tránsito en Barcelona/` directory, not from a parent folder.
+  </Accordion>
+
+  <Accordion title="02_load_staging.py is very slow">
+    This is expected behavior — the script inserts 150,000+ rows using batches of 4,000 records. The estimated runtime is **2–3 minutes**.
+
+    To speed it up, increase `batch_size` in `02_load_staging.py`:
+
+    ```python
+    batch_size = 5000   # default is 4000
+    ```
+
+    Do not set it too high — very large batches can exhaust MySQL's `max_allowed_packet` limit.
+  </Accordion>
+</AccordionGroup>

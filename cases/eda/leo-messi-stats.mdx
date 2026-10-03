@@ -1,0 +1,166 @@
+---
+title: "Leo Messi Career Statistics: Exploratory Data Analysis"
+sidebarTitle: "Messi Stats"
+description: "Analyze Leo Messi's career goals by club, match, time period, and Champions League performance using pandas and matplotlib."
+---
+
+This notebook analyses Leo Messi's scoring record at FC Barcelona through the lens of data, examining 651 goals across competitions from his debut through early 2019. Written in R, the analysis leverages `dplyr` for data manipulation and `ggplot2` / `ggthemes` for visualisation. The stated objective is to use data to understand Messi's strengths — and to look for any weak points — with a deep dive into both La Liga and the UEFA Champions League.
+
+> The dataset is available at [data.world/datatouille/lionel-messi](https://data.world/datatouille/lionel-messi).
+
+## Dataset
+
+The source file is `Lionel Messi Goals.csv` (semicolon-delimited), containing **651 rows** and **11 columns**, one row per goal scored.
+
+| Column | Type | Description |
+|---|---|---|
+| `Date` | chr | Match date in French locale (e.g. `"samedi 16 février 2019"`) |
+| `Competition.Name` | chr | Competition name (`Liga`, `Champions League`, `Copa del Rey`, `Unknown`) — 122 NAs |
+| `Home.team` | chr | Home team name |
+| `Opponent` | chr | Opposing team |
+| `Away.team` | chr | Away team name |
+| `Minute` | chr | Minute of the goal (may include added time, e.g. `"90+2"`) |
+| `Score.Home.Team` | int | Home-team score at the moment of the goal |
+| `Score.Away.Team` | int | Away-team score at the moment of the goal |
+| `Goal.Type` | chr | Type of goal (`Field goal`, `Penalty`, `Free kick`, etc.) — 311 NAs |
+| `Goal.Method` | chr | Method (`Left foot`, `Right foot`, `Head`, etc.) |
+| `Final.Game.Result` | chr | Match outcome (`Won`, `Draw`, `Lost`) |
+
+**Pre-processing steps performed:**
+- Locale is temporarily switched to French to parse the French-format dates.
+- Day names (e.g. `"samedi"`) are stripped and dates converted to R `Date` objects, then locale is restored to English.
+- Additional time minutes (e.g. `"90+2"`) are arithmetically resolved to a single integer (`92`).
+- Derived columns `day`, `n_day`, `month`, and `year` are extracted from the parsed date.
+- `Competition.Name` values labelled `Unknown` are confirmed (by inspecting opponents) to belong to La Liga, so they are merged with `Liga` records.
+
+## Career Analysis
+
+### Goals per Club (La Liga)
+
+A frequency table of goals grouped by the `Opponent` column reveals which clubs Messi has scored against most frequently in the league. Bar charts display goal counts in descending order.
+
+### Goals per Match Distribution
+
+Goals are grouped by match (using a combination of `Date` and `Opponent`) to produce a distribution of how many goals Messi scores in a single game, from zero up to five or more.
+
+### Hat-tricks (3+ Goals)
+
+Matches in which Messi scored three or more goals are isolated and counted per opponent club, highlighting which teams have been on the receiving end of hat-tricks most often.
+
+### Goals per Minute
+
+Each goal's `Minute` column (after resolving added time) is used to plot a histogram of scoring minutes across the full 90+ minute range, showing whether Messi tends to score at particular moments in a match.
+
+### Non-goal Minutes
+
+The inverse perspective: the proportion of La Liga minutes in which Messi did *not* score, segmented into 15-minute intervals (0–15, 16–30, 31–45, 46–60, 61–75, 76–90+).
+
+### Goals by Period of Play
+
+Goals are grouped into the standard match periods (first half vs. second half, and further subdivided into 15-minute bands) to show how his scoring rate evolves through a game.
+
+### Goals per Month
+
+Monthly aggregation of goal counts (using the `month` column) reveals seasonality — whether Messi scores more heavily in certain months of the football calendar.
+
+### Goals per Day of the Week
+
+Goals grouped by `day` (Monday through Sunday) identify whether weekend or midweek fixtures produce more or fewer Messi goals.
+
+### Goal Types
+
+The `Goal.Type` column (where available) is tabulated via a pie chart, showing the split between field goals, penalties, free kicks, and other types.
+
+### Global Analysis
+
+A combined summary bringing together scoring rates by competition, year, and match context.
+
+## Champions League Deep Dive
+
+The same suite of analyses is repeated exclusively on the subset of records where `Competition.Name == "Champions League"`:
+
+| Section | Focus |
+|---|---|
+| Goals per club | Which UCL opponents have conceded the most Messi goals |
+| Goals per match | Distribution of UCL goals per game |
+| Hat-tricks per club | UCL hat-tricks by opponent |
+| Goals per minute | Scoring minute distribution in UCL matches |
+| Non-goal minutes | UCL minutes without a goal |
+| Goals by period | First/second half split in UCL |
+| Goals per month | UCL monthly scoring pattern |
+| Goals per day | UCL day-of-week distribution |
+| Goal type | UCL field goals vs. penalties vs. free kicks |
+| Global analysis | UCL overall summary |
+
+## Code Snippet
+
+```r
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+
+# Load data
+data <- read.csv('Lionel Messi Goals.csv', sep = ';',
+                 stringsAsFactors = FALSE, na.strings = "")
+
+# Rename long score columns
+colnames(data)[7:8] <- c('Score.Home.Team', 'Score.Away.Team')
+
+# Parse French-locale dates
+Sys.setlocale('LC_TIME', "French_France")
+elim_day <- function(date) {
+  date <- strsplit(date, " ")
+  date <- unlist(date)
+  date <- date[-1]
+  paste(date, collapse = " ")
+}
+data$Date <- sapply(data$Date, elim_day)
+data$Date <- as.Date(data$Date, format = "%d %B %Y")
+Sys.setlocale("LC_TIME", "English_United States")
+
+# Extract temporal features
+data <- data %>%
+  mutate(
+    day   = format(Date, "%A"),
+    n_day = format(Date, "%d"),
+    month = format(Date, "%B"),
+    year  = format(Date, "%Y")
+  )
+data$Date <- NULL
+
+# Resolve added-time minutes (e.g. "90+2" -> 92)
+edit_addtime <- function(min) {
+  min <- strsplit(min, "[+]")
+  min <- unlist(min)
+  if (length(min) > 1) {
+    min <- as.numeric(min)
+    min <- as.character(sum(min))
+  }
+  return(min)
+}
+data$Minute <- sapply(data$Minute, edit_addtime)
+
+# Goals per club — La Liga
+liga <- data %>% filter(Competition.Name == 'Liga' | Competition.Name == 'Unknown')
+clubs_laliga <- data.frame(sort(table(liga$Opponent), decreasing = TRUE))
+colnames(clubs_laliga) <- c('Club', 'Goals')
+
+# Bar chart of goals per club
+options(repr.plot.width = 16, repr.plot.height = 3)
+ggplot(clubs_laliga) +
+  geom_bar(aes(x = Club, y = Goals),
+           stat = 'identity', fill = 'deepskyblue', col = 'dodgerblue4', width = .55) +
+  theme(plot.title = element_text(hjust = 0.5, face = 'bold',
+                                   family = 'Segoe Script', size = 13)) +
+  labs(title = 'Goals scored per club — La Liga', x = '') +
+  theme_hc()
+```
+
+## Key Findings
+
+- **Messi's high-performance era begins around 2009**, with his peak goal output recorded in **2012**.
+- La Liga accounts for the majority of Messi's goals in this dataset, with Champions League being the second most represented competition.
+- Goals are distributed across all 90+ minutes, but there is a notable tendency to score more frequently in the second half — particularly in the 75–90 minute window.
+- The `Goal.Type` column has significant missing data (~48 %), but among the classified goals, field goals with the left foot dominate.
+- Hat-tricks are a recurring feature of Messi's La Liga record, concentrated against certain clubs that appear repeatedly on that list.
+- Scoring rates by month show peaks during the mid-season months (November–March) when league fixtures are densest.

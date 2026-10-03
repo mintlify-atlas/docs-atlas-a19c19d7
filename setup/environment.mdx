@@ -1,0 +1,145 @@
+---
+title: "Configure Your Development Environment"
+sidebarTitle: "Environment"
+description: "Set up Python 3.12, Jupyter, and MySQL 8.0 to run every case study in the Data Science & Analytics collection."
+---
+
+The Data Science & Analytics collection has two runtime requirements: **Python 3.12+** (needed for every Jupyter Notebook case study) and **MySQL 8.0+** (needed only for the Barcelona Accidents SQL case). Everything else — libraries, data files, and notebooks — is self-contained inside each case study folder.
+
+---
+
+## Python Setup
+
+All notebooks in the collection require **Python 3.12 or later**. Earlier versions may work but are not tested against the dependency set used here.
+
+### Verify your Python version
+
+```bash
+python --version
+```
+
+You should see output like `Python 3.12.x`. If not, download the latest release from [python.org](https://www.python.org/downloads/).
+
+### Create and activate a virtual environment
+
+Working inside a virtual environment keeps project dependencies isolated from your system Python. Create one in the root of the repository (or inside a specific case study folder), then activate it:
+
+<Tabs>
+  <Tab title="Windows">
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\activate
+    ```
+  </Tab>
+  <Tab title="macOS / Linux">
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+  </Tab>
+</Tabs>
+
+### Install dependencies
+
+Some case studies (such as **Estudio de Recompra** and the **House Price Prediction** model) ship their own `requirements.txt` inside the case folder. Install from it after activating your environment:
+
+```bash
+pip install -r requirements.txt
+```
+
+If a case study folder does not include a `requirements.txt`, refer to [Libraries](/setup/libraries) for the full per-library install commands.
+
+---
+
+## Jupyter Notebook
+
+Every case study in the collection is delivered as a `.ipynb` file. You need either **Jupyter Notebook** or **JupyterLab** to open and run them.
+
+### Install and launch Jupyter Notebook
+
+```bash
+pip install jupyter
+```
+
+```bash
+jupyter notebook
+```
+
+Jupyter will open a file browser in your default web browser at `http://localhost:8888`. Navigate to a case study folder and click any `.ipynb` file to open it.
+
+### JupyterLab (optional modern interface)
+
+JupyterLab provides a more feature-rich interface with a file explorer sidebar, multiple tabs, and an integrated terminal.
+
+```bash
+pip install jupyterlab
+```
+
+```bash
+jupyter lab
+```
+
+Both interfaces run the same notebooks — choose whichever you prefer.
+
+---
+
+## MySQL Setup (Barcelona Accidents only)
+
+The **Accidentes de tránsito en Barcelona** case study is the only one in the collection that requires a relational database. It uses five Python scripts (not a notebook) to create a schema, load 150,000+ records from CSV files, define custom MySQL functions, build semantic views, and run analytical queries.
+
+### Requirement
+
+**MySQL 8.0** or **MariaDB** (a compatible drop-in replacement).
+
+### Verify your MySQL installation
+
+```bash
+mysql --version
+```
+
+You should see output referencing `8.0.x` or a compatible MariaDB version. If MySQL is not installed, download it from [dev.mysql.com](https://dev.mysql.com/downloads/mysql/).
+
+### Install the required Python libraries
+
+```bash
+pip install mysql-connector-python pandas
+```
+
+`mysql-connector-python` is the official MySQL driver used by all five scripts in the case. `pandas` handles CSV ingestion and type coercion before bulk-inserting records.
+
+### Configure your credentials
+
+Each of the five scripts (`01_schema.py` through `05_analysis_queries.py`) connects to MySQL using a hardcoded credentials block. Before running any script, open the file and update the connection details to match your local MySQL setup:
+
+```python
+connection = mysql.connector.connect(
+    host='localhost',
+    user='root',
+    password='your_password',  # ← replace with your MySQL password
+    database='AccidentesBCN'
+)
+```
+
+<Warning>
+  Never commit your MySQL password to version control. Consider replacing the
+  hardcoded `password` value with an environment variable
+  (`os.environ.get("MYSQL_PASSWORD")`) before pushing changes to a shared
+  repository.
+</Warning>
+
+---
+
+## Recommended IDE
+
+Any editor that supports Jupyter kernels works well with this collection. Two options stand out:
+
+- **[Visual Studio Code](https://code.visualstudio.com/)** with the official [Jupyter extension](https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter) — lets you run cells inline, inspect variables in a data viewer, and use the integrated terminal for pip commands, all in one window.
+- **JupyterLab** — the browser-based interface launched with `jupyter lab`, offering a dedicated notebook environment with a built-in file browser and terminal.
+
+Both options support `.ipynb` files and handle all notebooks in the collection without additional configuration.
+
+<Tip>
+  See [Libraries](/setup/libraries) for a complete reference of every
+  third-party package used across the collection, with individual install
+  commands and descriptions of where each library appears.
+</Tip>

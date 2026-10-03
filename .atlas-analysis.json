@@ -1,0 +1,100 @@
+{
+  "projectType": "ai-ml",
+  "projectName": "Data Science & Analytics Cases",
+  "projectDescription": "A curated collection of end-to-end data science and analytics case studies covering NLP, machine learning, SQL analysis, and exploratory data analysis in Python and R.",
+  "theme": "palm",
+  "primaryColor": "#25b2fa",
+  "lightColor": "#fc792b",
+  "darkColor": "#fcbd89",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Tools & Setup",
+            "pages": [
+              "setup/environment",
+              "setup/libraries"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Case Studies",
+        "groups": [
+          {
+            "group": "Natural Language Processing",
+            "pages": [
+              "cases/nlp/sentiment-analysis",
+              "cases/nlp/review-analysis",
+              "cases/nlp/fake-news-detection",
+              "cases/nlp/text-similarity"
+            ]
+          },
+          {
+            "group": "Machine Learning",
+            "pages": [
+              "cases/ml/breast-cancer-classification",
+              "cases/ml/house-price-prediction",
+              "cases/ml/repurchase-prediction"
+            ]
+          },
+          {
+            "group": "Exploratory Data Analysis",
+            "pages": [
+              "cases/eda/barcelona-climate",
+              "cases/eda/leo-messi-stats",
+              "cases/eda/oxfam-donors",
+              "cases/eda/zara-stocks",
+              "cases/eda/trialing"
+            ]
+          },
+          {
+            "group": "SQL & Data Engineering",
+            "pages": [
+              "cases/sql/barcelona-accidents",
+              "cases/sql/damavis-challenge"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "End-to-end NLP pipelines: sentiment analysis, topic modeling, and text similarity",
+    "Supervised ML workflows: classification (breast cancer, fake news) and regression (house prices)",
+    "Customer analytics: RFM segmentation and repurchase prediction with XGBoost/LightGBM",
+    "SQL data engineering: multi-table schema design, custom MySQL functions, and semantic views",
+    "Exploratory data analysis on sports stats, climate data, financial stocks, and NGO donors",
+    "Full Python/Pandas pipelines from raw CSV ingestion to insight generation"
+  ],
+  "publicApiSurface": [
+    "01_schema.py — creates AccidentesBCN MySQL database with 4 related tables",
+    "02_load_staging.py — bulk-loads 150K+ CSV records into MySQL in batches",
+    "03_functions.py — defines categoria_edad(), tipo_vehiculo(), estado_persona() MySQL UDFs",
+    "04_semantic_views.py — creates vista_accidentes_mortales semantic view",
+    "05_analysis_queries.py — runs 8 analysis queries over the accident dataset",
+    "run_all.bat — batch script to execute the full Barcelona accidents pipeline",
+    "Analisis.ipynb (Estudio de recompra) — Logistic Regression / XGBoost / LightGBM repurchase model",
+    "Pre-processing and feature engineering.ipynb — house price feature engineering notebook",
+    "Supervised methods.ipynb — house price regression model comparison notebook",
+    "Analisis de reseñas.ipynb — fixauto.com review sentiment + topic modeling notebook",
+    "Analisis de sentimientos.ipynb — hotel review sentiment analysis + word cloud notebook",
+    "Breast cancer.ipynb — binary classification on the breast cancer dataset",
+    "Fake News.ipynb — fake news word frequency analysis and classification notebook",
+    "Similarity rate between two texts.ipynb — cosine/TF-IDF text similarity notebook",
+    "Clima de Barcelona.ipynb — Barcelona climate EDA notebook",
+    "Leo Messi.ipynb — Messi career goals exploratory analysis notebook",
+    "Zara.ipynb — Inditex (ITX) stock price analysis notebook",
+    "src/extraccion.py — data loading helper for online retail dataset",
+    "src/anejo.py — auxiliary utility functions for Estudio de recompra"
+  ]
+}

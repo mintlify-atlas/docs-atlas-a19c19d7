@@ -1,0 +1,146 @@
+---
+title: "Fake News Detection via Word Frequency Analysis"
+sidebarTitle: "Fake News"
+description: "Identify fake news articles by analyzing word frequency distributions, rating word importance, and visualizing discriminating terms between real and fake articles."
+---
+
+This notebook identifies fake news by analyzing word-level patterns in a labeled Reddit comments dataset covering **January 2017 through August 2018** (20 monthly CSV files). The approach scores each month's corpus against a curated list of truth-valence words—terms associated with fabrication or authenticity—and plots how the proportion of comments containing at least one such word evolves over time.
+
+## Approach
+
+### Dataset
+
+Reddit comments are stored in monthly CSV files named `RC_YYYY-MM.csv`. The notebook iterates over 12 months of 2017 and 8 months of 2018 (20 files total), extracting only the `body` field of each record. Deleted (`[deleted]`) and removed (`[removed]`) comments are discarded during loading.
+
+```python
+import io, datetime as dt
+
+years  = [2017, 2018]
+months = [["01","02",...,"12"], ["01","02",...,"08"]]
+
+messages = [[], []]
+
+for indexy in range(len(years)):
+    for month in months[indexy]:
+        address = f"RC_{years[indexy]}-{month}.csv"
+        file = io.open(file="dataset\\" + address, encoding="utf-8")
+        lines = file.readlines()
+        file.close()
+
+        paragraph = []
+        for index in range(1, len(lines)):
+            if '"' in lines[index].split(",")[1]:
+                extract = lines[index].split('"')[1]
+            else:
+                extract = lines[index].split(",")[1]
+            if "[removed]" != extract and "[deleted]" != extract:
+                paragraph.append(extract)
+
+        messages[indexy].append(paragraph)
+```
+
+Average download / parsing time per file is **~3 seconds**; total corpus load takes roughly **1 minute 6 seconds**.
+
+### Word Rating / Scoring Methodology
+
+A vocabulary of **29 truth-valence words** is defined, spanning both fake-news indicators and authenticity markers:
+
+```python
+words = [
+    "false", "feigned", "fictitious", "gossip", "tattle", "coloquial",
+    "junk", "bogues", "phony", "concocted", "invented", "make", "sham",
+    "soft", "counterfeit", "fabricated", "forget", "fraudulent", "mock",
+    "simulated", "artificial", "blamey", "authentic", "genuine", "real",
+    "sincere", "true", "original", "truthful"
+]
+```
+
+For each monthly corpus, the notebook counts how many comments contain **at least one** word from this list and computes a **monthly ratio** (matching comments / total comments).
+
+### Visualization
+
+The 20 monthly ratios are plotted as a time series with a dashed horizontal line at the overall average ratio.
+
+## Workflow
+
+<Steps>
+  <Step title="Download and Load the Labeled News Dataset">
+    Iterate over 20 monthly CSV files (Jan 2017 – Aug 2018), read each line, extract the comment body, and discard deleted/removed entries. All text is collected into a nested list indexed by year and month.
+
+    ```python
+    for indexy in range(len(years)):
+        for month in months[indexy]:
+            # parse CSV, skip deleted/removed entries
+            messages[indexy].append(paragraph)
+    ```
+  </Step>
+
+  <Step title="Tokenize and Clean Text">
+    All text is converted to lowercase to ensure case-insensitive matching:
+
+    ```python
+    for indexy in range(len(years)):
+        for month in months[indexy]:
+            month_texts = messages[indexy][int(month) - 1]
+            for ind in range(len(month_texts)):
+                month_texts[ind] = month_texts[ind].lower()
+    ```
+
+    Total lowercasing time across all 20 files: **~6 seconds**.
+  </Step>
+
+  <Step title="Score Words by Frequency and Discrimination Power">
+    For each month, the notebook counts how many comments include at least one word from the 29-word truth-valence vocabulary:
+
+    ```python
+    rates = []
+
+    for indexy in range(len(years)):
+        for month in months[indexy]:
+            counting = 0
+            monthly_texts = messages[indexy][int(month) - 1]
+            for ind in range(len(monthly_texts)):
+                n = 0
+                for word in words:
+                    if word in monthly_texts[ind]:
+                        break
+                    else:
+                        n += 1
+                if n != len(words):
+                    counting += 1
+            rates.append(counting / len(monthly_texts))
+    ```
+
+    Rating loop total time: **~2 minutes 30 seconds**.
+  </Step>
+
+  <Step title="Plot Output Distributions">
+    Monthly ratios and their overall average are visualized:
+
+    ```python
+    import matplotlib.pyplot as plt
+
+    plt.style.use("fivethirtyeight")
+    plt.figure(figsize=(14, 7))
+    plt.xticks(range(len(month_date)), month_date, rotation=40)
+    plt.axhline(
+        y=sum(rates) / len(rates),
+        xmin=0, xmax=20,
+        color="purple", ls="dotted", alpha=0.4
+    )
+    plt.plot(range(20), rates)
+    plt.title("Monthly words ratio", color="red", fontweight=15)
+    plt.show()
+    ```
+  </Step>
+</Steps>
+
+## Key Findings
+
+- **Approximately 1 in every 10 comments** contains at least one word from the truth-valence vocabulary, suggesting a consistent underlying signal.
+- **February** consistently shows the **lowest ratio** in both 2017 and 2018, indicating seasonal variation in the use of fake-news-related language on Reddit.
+- The **annual words ratio trends upward** year-over-year: 2018 months generally show higher ratios than the corresponding 2017 months, suggesting either increased fake-news discourse or growing awareness vocabulary on Reddit over this period.
+
+<Note>
+This notebook uses word-level presence/absence features rather than deep learning or transformer-based classifiers. The 29-word vocabulary captures both deception indicators ("false", "fabricated", "phony") and authenticity markers ("genuine", "real", "truthful"). A more robust classifier would require labeled ground-truth data and model training.
+</Note>

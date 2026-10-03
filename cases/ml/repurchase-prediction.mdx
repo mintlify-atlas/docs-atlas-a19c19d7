@@ -1,0 +1,172 @@
+---
+title: "Customer Repurchase Prediction with XGBoost and LightGBM"
+sidebarTitle: "Repurchase Model"
+description: "Predict which online retail customers will repurchase using RFM segmentation, Logistic Regression, XGBoost, and LightGBM with ~80% ROC-AUC."
+---
+
+This project analyzes more than 1 million online retail transactions to predict customer repurchase probability. Starting from raw transactional data, the pipeline cleans and explores the dataset, segments customers using RFM (Recency, Frequency, Monetary) features, labels each customer as a repurchaser or not, and then trains three binary classifiers — Logistic Regression, XGBoost, and LightGBM — evaluated by ROC-AUC.
+
+## Dataset
+
+The source file `online_retail_II.xlsx` contains **1,067,371 transactions** spanning December 2009 through December 2011 across transactions from 43 countries. The processed version is cached as `online_retail.pkl` for fast loading.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Invoice` | object | Invoice number (returns start with `'C'`) |
+| `StockCode` | object | Product code |
+| `Description` | object | Product name (0.3–0.5% null) |
+| `Quantity` | int64 | Units per transaction |
+| `InvoiceDate` | datetime64 | Date and time of the invoice |
+| `Price` | float64 | Unit price in GBP |
+| `Customer ID` | float64 | Unique customer identifier (~21–30% null) |
+| `Country` | str | Customer country |
+
+Descriptive statistics after cleaning:
+
+| Stat | Quantity | Price | Customer ID |
+|------|----------|-------|-------------|
+| count | 1,009,726 | 1,009,726 | 778,917 |
+| mean | 11.34 | 4.06 | 15,320.76 |
+| median | 4 | 2.10 | 15,248 |
+| max | 80,995 | 25,111 | 18,287 |
+
+## Project Structure
+
+```
+Estudio de recompra/
+├── data/
+│   ├── online_retail.pkl       # Processed dataset
+│   └── online_retail_II.xlsx   # Source data
+├── src/
+│   ├── extraccion.py           # Data loading helper
+│   └── anejo.py                # Auxiliary functions
+└── Analisis.ipynb              # Main analysis notebook
+```
+
+## Pipeline
+
+<Steps>
+  <Step title="Load Data">
+    Data is loaded from the pickled file via a custom helper to avoid re-reading the large Excel file on every run:
+
+    ```python
+    from src.extraccion import load_from_pickle
+
+    df = load_from_pickle()
+    # 1,067,371 instances × 8 attributes
+    ```
+  </Step>
+
+  <Step title="Clean Data">
+    Four cleaning operations are applied sequentially:
+
+    1. **Remove exact duplicates** (34,335 rows, 3.22% of the dataset)
+    2. **Remove returns** — invoices starting with `'C'` (19,104 rows) and all rows sharing those invoice IDs
+    3. **Remove negative quantities and prices** — 22,496 rows with `Quantity < 0`, 5 rows with `Price < 0`
+    4. **Remove incomplete countries** — `'Unspecified'` (748 rows) and `'European Community'` (60 rows)
+
+    ```python
+    # Drop duplicates
+    df = df.drop_duplicates()
+
+    # Identify and remove return invoices
+    devoluciones = df[df['Invoice'].str.startswith('C', na=False)]
+    df = df[~df['Invoice'].isin(devoluciones['Invoice'].unique())]
+
+    # Remove negative values
+    df = df[df['Price'] >= 0]
+    df = df[df['Quantity'] > 0]
+
+    # Remove incomplete countries
+    df = df[~((df.Country == 'European Community') | (df.Country == 'Unspecified'))]
+    ```
+  </Step>
+
+  <Step title="Exploratory Data Analysis">
+    The notebook explores:
+    - **Price and quantity distributions** — highly right-skewed; most orders are small
+    - **Sales by country** — UK dominates, followed by Germany, France, and EIRE
+    - **Time series** — monthly revenue computed as `df['Revenue'] = df['Quantity'] * df['Price']`, revealing seasonal peaks toward year-end
+  </Step>
+
+  <Step title="RFM Segmentation">
+    Each customer with a known `Customer ID` is summarized into three RFM features:
+    - **Recency** — days since last purchase (lower = more recent)
+    - **Frequency** — total number of distinct invoices
+    - **Monetary** — total cumulative spend (`sum(Quantity × Price)`)
+
+    See the [RFM Segmentation](#rfm-segmentation) section below for implementation details.
+  </Step>
+
+  <Step title="Build Repurchase Label">
+    A binary target is constructed: did the customer make at least one purchase after a defined reference date? Customers who appear in more than one time window are labeled `1` (repurchaser); those who do not are labeled `0`.
+  </Step>
+
+  <Step title="Train Models">
+    Three classifiers are trained on the RFM feature matrix:
+
+    ```python
+    from sklearn.linear_model import LogisticRegression
+    from xgboost import XGBClassifier
+    from lightgbm import LGBMClassifier
+
+    models = {
+        "Logistic Regression": LogisticRegression(),
+        "XGBoost":             XGBClassifier(),
+        "LightGBM":            LGBMClassifier(),
+    }
+    ```
+  </Step>
+
+  <Step title="Evaluate with ROC-AUC">
+    Models are evaluated using ROC-AUC on a held-out test set. XGBoost achieves **~80% ROC-AUC**, outperforming Logistic Regression and matching LightGBM.
+  </Step>
+</Steps>
+
+## RFM Segmentation
+
+RFM groups customers by three behavioral dimensions derived entirely from transaction history:
+
+| Feature | Definition |
+|---------|------------|
+| **Recency** | Days elapsed since the customer's most recent purchase |
+| **Frequency** | Number of distinct invoices (purchase occasions) |
+| **Monetary** | Total spend: `sum(Quantity × Price)` across all invoices |
+
+```python
+import pandas as pd
+
+reference_date = df['InvoiceDate'].max()
+
+rfm = (
+    df.groupby('Customer ID')
+    .agg(
+        Recency   = ('InvoiceDate', lambda x: (reference_date - x.max()).days),
+        Frequency = ('Invoice',     'nunique'),
+        Monetary  = ('Revenue',     'sum')
+    )
+    .reset_index()
+)
+```
+
+These three features are then used directly as inputs to the classification models.
+
+## Model Comparison
+
+| Model | ROC-AUC |
+|-------|---------|
+| Logistic Regression | ~0.74 |
+| LightGBM | ~0.79 |
+| **XGBoost** | **~0.80** |
+
+XGBoost yields the highest ROC-AUC, followed closely by LightGBM. Logistic Regression provides a useful baseline and requires no hyperparameter tuning, but its linear decision boundary limits performance on the non-linear RFM feature space.
+
+## Results
+
+The best model — **XGBoost** — achieves approximately **80% ROC-AUC** on the held-out test set. Feature importance analysis confirms that the three most predictive signals are:
+
+1. **Recency** — customers who purchased recently are far more likely to return
+2. **Frequency** — habitual buyers show higher repurchase rates
+3. **Monetary (total spend)** — high-value customers tend to be loyal
+
+These findings align with classical CRM theory: recency is the single strongest individual predictor of future purchase behavior.

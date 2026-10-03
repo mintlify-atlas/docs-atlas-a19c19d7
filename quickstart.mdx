@@ -1,47 +1,98 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Data Science & Analytics Cases"
+sidebarTitle: "Quickstart"
+description: "Clone the repository, set up your Python environment, and run your first data science notebook in five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you through everything you need to go from zero to running a complete data science notebook end-to-end. By the end you will have the repository on your machine, a clean virtual environment with all core dependencies installed, Jupyter running in your browser, and the breast-cancer classification notebook fully executed.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+
+  <Step title="Clone the repository">
+    Download the full project to your local machine with Git:
 
     ```bash
-    npm install your-package
+    git clone https://github.com/Programming-cases/Data-Science-and-Analytics.git
+    cd Data-Science-and-Analytics
     ```
+
+    The repository contains all notebooks, CSV datasets, and supporting source files needed to run each case study.
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Create a virtual environment">
+    Isolate the project's dependencies from your system Python by creating a dedicated virtual environment:
 
     ```bash
-    your-cli init
+    python -m venv .venv
     ```
+
+    Then activate it for your operating system:
+
+    <CodeGroup>
+
+    ```bash macOS / Linux
+    source .venv/bin/activate
+    ```
+
+    ```bash Windows (Command Prompt)
+    .venv\Scripts\activate.bat
+    ```
+
+    ```bash Windows (PowerShell)
+    .venv\Scripts\Activate.ps1
+    ```
+
+    </CodeGroup>
+
+    Once activated your terminal prompt will show `(.venv)` to confirm you are working inside the environment.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Install core dependencies">
+    Install the libraries used across the notebook case studies in one command:
 
     ```bash
-    your-cli start
+    pip install jupyter pandas numpy scikit-learn matplotlib seaborn xgboost lightgbm nltk
     ```
+
+    This covers data manipulation (`pandas`, `numpy`), machine learning (`scikit-learn`, `xgboost`, `lightgbm`), visualisation (`matplotlib`, `seaborn`), and natural-language processing (`nltk`). Individual case studies may list additional requirements — check the `README.md` inside each project sub-folder for details.
   </Step>
+
+  <Step title="Launch Jupyter">
+    Start the Jupyter Notebook server from the repository root:
+
+    ```bash
+    jupyter notebook
+    ```
+
+    Jupyter will open automatically in your default browser at `http://localhost:8888`. From the file-browser interface you can navigate into any case study folder and open its `.ipynb` file. Root-level notebooks (like `Breast cancer.ipynb`) are visible immediately on the home screen.
+  </Step>
+
+  <Step title="Run a notebook">
+    As your first case study, open **`Breast cancer.ipynb`**. It is a self-contained classification walkthrough that loads the Wisconsin Breast Cancer dataset, performs exploratory analysis, and builds a predictive model — no extra configuration or external services required.
+
+    Open the file at the path below from the Jupyter home screen:
+
+    ```
+    Breast cancer.ipynb
+    ```
+
+    Once the notebook is open, run all cells in order via **Kernel → Restart & Run All**. The notebook uses `pandas`, `matplotlib`, `numpy`, and `seaborn`, all of which were installed in Step 3.
+  </Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+<Note>
+  The **Barcelona Accidents** SQL case study (`Accidentes de tránsito en
+  Barcelona/`) requires a running **MySQL 8.0+** server that is installed and
+  configured separately. Before executing any of its Python scripts, make sure
+  MySQL is running and update the connection credentials (`host`, `user`,
+  `password`) in each `.py` file. See the project's `README.md` for the full
+  setup walkthrough.
+</Note>
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+<Tip>
+  For a full environment setup guide — including optional dependencies like
+  BERTopic, Hugging Face Transformers, Optuna, and
+  `mysql-connector-python` — see the [Environment Setup](/setup/environment)
+  page.
 </Tip>

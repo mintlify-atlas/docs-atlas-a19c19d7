@@ -1,0 +1,118 @@
+---
+title: "Oxfam Donor and Donation Analytics"
+sidebarTitle: "Oxfam Donors"
+description: "Analyze Oxfam contributor and donation data to understand donor behavior, donation amounts, and contribution patterns."
+---
+
+This notebook explores data provided by Oxfam Intermón, the Spanish arm of the Oxfam confederation, to understand the characteristics of its contributors and the patterns behind their donations. The analysis is written in Python using pandas, NumPy, and matplotlib, and is structured around two separate but related datasets: one describing the donors themselves and one recording individual donation transactions.
+
+## Dataset
+
+Two CSV files are used:
+
+### `account_id_data.csv` — Contributors
+
+| Column | Type | Description |
+|---|---|---|
+| `account_id` | int64 | Unique donor identifier |
+| `date_of_birth` | datetime64 | Donor date of birth (some NaT values) |
+| `original_recruitment_date` | datetime64 | Date the donor first joined (some NaT values) |
+| `recruitment_channel` | object | Channel through which the donor was recruited (`apartado_correos`, `web`, `puerta_a_puerta`, `cara_a_cara`, `llamada`) |
+| `gender` | object | Donor gender (`hombre` / `mujer`) |
+
+NaN values are present in `date_of_birth` and `original_recruitment_date` only; all other columns are complete.
+
+### `gifts.csv` — Donations
+
+| Column | Type | Description |
+|---|---|---|
+| `gift_id` | int64 | Unique donation identifier |
+| `account_id` | int64 | Foreign key linking to the contributor |
+| `payment_date` | datetime64 | Date of the donation |
+| `payment_amount` | float64 | Donation amount in euros |
+| `gift_type` | object | Type of donation (`Cuotas` = regular fee, `Puntual` = one-off) |
+| `frequency` | object | Payment frequency (`Mensual` = monthly; NaN for one-off gifts) |
+
+The gifts dataset covers **2016 only** (confirmed by `gifts.año.unique()` returning `[2016]`). It contains **100,996 regular (`Cuotas`) donations** and **1,555 one-off (`Puntual`) donations**. The `frequency` column has NaN values (corresponding to one-off gifts where frequency is not applicable).
+
+## Contributors Analysis
+
+1. **Data type inspection** — `date_of_birth` and `original_recruitment_date` are parsed directly as `datetime64` using `parse_dates` to avoid manual conversion.
+
+2. **Null-value audit** — `account.isnull().any()` confirms that only the two date columns contain nulls; the identifier, channel, and gender fields are fully populated.
+
+3. **Random sampling** — `account.iloc[np.random.randint(0, account.shape[0], 10), :]` is used repeatedly during exploration to inspect representative rows.
+
+4. **Recruitment channel distribution** — the `recruitment_channel` column reveals the relative importance of different acquisition methods: mail (`apartado_correos`), web, door-to-door (`puerta_a_puerta`), face-to-face (`cara_a_cara`), and phone (`llamada`).
+
+5. **Gender breakdown** — the `gender` column (values `hombre` / `mujer`) is used to compare the gender split of the donor base.
+
+6. **Donor tenure calculation** — for donors in the **75th-percentile cohort** (those recruited before 2013-07-30), a `antigüedad` (seniority) column is computed by subtracting `original_recruitment_date` from the reference date `2016-12-31`, converting the result to whole years. This allows comparison of average tenure between male and female donors in the most established cohort.
+
+## Donations Analysis
+
+1. **Year and month extraction** — `año` and `mes` columns are added to the gifts dataframe: `gifts['año'] = gifts['payment_date'].dt.year` and `gifts['mes'] = gifts['payment_date'].dt.month`.
+
+2. **Month with the highest number of donations** — a `groupby('mes')` aggregation counts donations (`account_id.count`) and averages amounts (`payment_amount.mean`) per month. **April (month 4)** has the highest total with **9,114 transactions**, and its average donation amount is **€16.18**.
+
+3. **Donations per account** — a horizontal bar chart (`barh`) of the top 20 accounts by donation count is produced using randomly assigned colours to identify the most active donors.
+
+4. **One-off vs. regular donation mix** — `gifts.gift_type.value_counts()` confirms the overwhelming dominance of regular (`Cuotas`) subscriptions (100,996) over one-off (`Puntual`) gifts (1,555).
+
+5. **Average donation amount by month** — the `groupby` results are inspected across all 12 months to identify whether donation amounts fluctuate seasonally, with December showing the highest average payment (`€20.85` per transaction).
+
+## Code Snippet
+
+```python
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+plt.style.use('seaborn')
+import warnings
+warnings.filterwarnings('ignore')
+
+# --- Contributors ---
+account = pd.read_csv(
+    'account_id_data.csv',
+    parse_dates=['date_of_birth', 'original_recruitment_date']
+)
+
+# --- Donations ---
+gifts = pd.read_csv('gifts.csv', parse_dates=['payment_date'])
+
+# Add year and month columns to the gifts table
+gifts = gifts.assign(
+    año=gifts['payment_date'].dt.year,
+    mes=gifts['payment_date'].dt.month
+)
+
+# Monthly aggregation: count of donations and mean amount
+agrup_maxdon = gifts.groupby('mes', as_index=False).agg(
+    {'account_id': 'count', 'payment_amount': 'mean'}
+)
+
+# Identify the month with the most donations
+agrup_maxdon[agrup_maxdon['account_id'] == max(agrup_maxdon['account_id'])]
+
+# --- Donor tenure for the 75th-percentile cohort ---
+q75_date = account.original_recruitment_date.astype('int64') \
+                  .quantile([.75]).astype('datetime64[ns]')
+# 75th percentile: 2013-07-30
+
+donantes_mayores = account[
+    account.original_recruitment_date < pd.to_datetime('2013-07-30', format='%Y-%m-%d')
+]
+refer_time = pd.to_datetime('2016-12-31', format='%Y-%m-%d')
+donantes_mayores['antigüedad'] = refer_time - donantes_mayores['original_recruitment_date']
+donantes_mayores['antigüedad'] = donantes_mayores.antigüedad.dt.days / 365
+donantes_mayores['antigüedad'] = donantes_mayores.antigüedad.round(0).astype('int64')
+```
+
+## Findings
+
+- **All donation data is from 2016** — the analysis is a single-year snapshot.
+- **April is the busiest month** for donations (9,114 transactions), while **December has the highest average transaction amount** (€20.85).
+- **Regular monthly subscriptions (`Cuotas`)** dominate the gift portfolio, representing ~98.5 % of all transactions. One-off (`Puntual`) donations are relatively rare.
+- The **75th-percentile recruitment date is 2013-07-30**, meaning 25 % of active donors were recruited after that date, while 75 % have been supporters for at least three years by end of 2016.
+- **Null values in `date_of_birth` and `original_recruitment_date`** require care when computing tenure or age-based analyses; the notebook explicitly filters out NaT rows before performing date arithmetic.
+- The `frequency` column is null for one-off donations (as expected) and `Mensual` for regular subscriptions; no other frequencies appear in the 2016 data.

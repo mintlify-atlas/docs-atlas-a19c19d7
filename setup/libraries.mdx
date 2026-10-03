@@ -1,0 +1,116 @@
+---
+title: "Python Libraries Used Across All Case Studies"
+sidebarTitle: "Libraries"
+description: "Reference guide for every Python library used in the Data Science & Analytics case studies, with install commands and primary use cases."
+---
+
+This page covers every third-party Python library used across the Data Science & Analytics collection. Each entry includes the install command and a short description of where the library appears in the case studies. If you are setting up a fresh environment, jump to the [install-all command](#install-all-libraries) at the bottom of the page.
+
+---
+
+## Data Manipulation & Analysis
+
+These two libraries form the foundation of almost every case study in the collection. Virtually every notebook imports both.
+
+| Library | Description | Install |
+|---------|-------------|---------|
+| `pandas` | DataFrames, CSV loading, and data cleaning. Used in every notebook and in the Barcelona Accidents SQL scripts to ingest CSV files before bulk-insert. | `pip install pandas` |
+| `numpy` | Numerical arrays and mathematical operations. Provides the underlying array types used by pandas, scikit-learn, and matplotlib throughout the collection. | `pip install numpy` |
+
+```bash
+pip install pandas numpy
+```
+
+---
+
+## Machine Learning
+
+These libraries appear in the classification and regression case studies, including **Breast Cancer**, **House Price Prediction**, and **Estudio de Recompra**.
+
+| Library | Description | Install |
+|---------|-------------|---------|
+| `scikit-learn` | Classification, regression, preprocessing, and train/test splitting. Used for Logistic Regression, Random Forest, KNN, SVM, and evaluation metrics across multiple notebooks. | `pip install scikit-learn` |
+| `xgboost` | Gradient boosted trees via `XGBClassifier`. Used in the Estudio de Recompra repurchase prediction model, reaching ~80% ROC-AUC. | `pip install xgboost` |
+| `lightgbm` | Light gradient boosting via `LGBMClassifier`. Used alongside XGBoost in the Estudio de Recompra case for comparative model evaluation. | `pip install lightgbm` |
+
+```bash
+pip install scikit-learn xgboost lightgbm
+```
+
+---
+
+## Natural Language Processing
+
+These libraries are used in the NLP-focused case studies: **Análisis de Reseñas**, **Análisis de Sentimientos**, **Fake News**, and **Similarity Rate Between Two Texts**.
+
+| Library | Description | Install |
+|---------|-------------|---------|
+| `nltk` | Tokenization, stopword removal, stemming, and sentiment analysis via `WordNetLemmatizer` and other utilities. | `pip install nltk` |
+| `textblob` | Simple NLP API built on NLTK. Used for sentiment polarity scoring via `TextBlob` in the review and sentiment analysis notebooks. | `pip install textblob` |
+| `wordcloud` | Word cloud generation with `WordCloud`, `STOPWORDS`, and `ImageColorGenerator`. Used to visualise term frequency in text-heavy case studies. | `pip install wordcloud` |
+
+```bash
+pip install nltk textblob wordcloud
+```
+
+---
+
+## Visualization
+
+Both libraries are imported together throughout the collection. `matplotlib` provides the base plotting engine; `seaborn` adds high-level statistical chart types on top of it.
+
+| Library | Description | Install |
+|---------|-------------|---------|
+| `matplotlib` | Base plotting library. All notebooks use `matplotlib.pyplot` for line charts, histograms, scatter plots, and figure layout. | `pip install matplotlib` |
+| `seaborn` | Statistical data visualization built on matplotlib. Used for distribution plots, heatmaps, and styled figure output across EDA and ML notebooks. | `pip install seaborn` |
+
+```bash
+pip install matplotlib seaborn
+```
+
+---
+
+## Database (SQL Case Only)
+
+This library is exclusively required by the **Accidentes de tránsito en Barcelona** case study. No other case in the collection connects to a database.
+
+| Library | Description | Install |
+|---------|-------------|---------|
+| `mysql-connector-python` | Official MySQL driver. Used by all five pipeline scripts (`01_schema.py` through `05_analysis_queries.py`) to create the schema, load 150,000+ records, define custom MySQL functions, build semantic views, and run analytical queries against the `AccidentesBCN` database. | `pip install mysql-connector-python` |
+
+```bash
+pip install mysql-connector-python
+```
+
+---
+
+## Notebooks
+
+You need one of these to open and run any `.ipynb` file in the collection. JupyterLab is optional but provides a more modern interface.
+
+| Library | Description | Install |
+|---------|-------------|---------|
+| `jupyter` | Interactive notebook environment. Launch with `jupyter notebook` to open the file browser at `http://localhost:8888`. | `pip install jupyter` |
+| `jupyterlab` | Modern Jupyter interface with a sidebar file explorer, multi-tab layout, and integrated terminal. Launch with `jupyter lab`. | `pip install jupyterlab` |
+
+```bash
+pip install jupyter
+```
+
+---
+
+## Install All Libraries
+
+Use the commands below to install everything in one step. The first block covers all notebooks; the second adds the MySQL driver for the Barcelona Accidents SQL case.
+
+<CodeGroup>
+
+```bash All notebooks
+pip install pandas numpy scikit-learn xgboost lightgbm nltk textblob wordcloud matplotlib seaborn jupyter
+```
+
+```bash SQL cases
+pip install mysql-connector-python
+```
+
+</CodeGroup>

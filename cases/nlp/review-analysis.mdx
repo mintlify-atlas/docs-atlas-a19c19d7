@@ -1,0 +1,171 @@
+---
+title: "Review Mining: Sentiment and Topic Analysis"
+sidebarTitle: "Review Analysis"
+description: "Full NLP pipeline on fixauto.com reviews: data extraction, global sentiment scoring, LDA topic discovery, per-topic sentiment, and competitor benchmarking."
+---
+
+This notebook performs a complete NLP analysis pipeline on reviews of **fixauto.com**, a nationwide car-repair workshop network, scraped from Trustpilot. The pipeline spans data cleaning, global sentiment scoring with a HuggingFace transformer model, unsupervised topic discovery with BERTopic, per-topic sentiment breakdown, and a competitive benchmarking comparison against 44 other companies in the **Vehicles & Transportation** category.
+
+## Objectives
+
+1. Data extraction and cleaning
+2. Global sentiment analysis
+3. Topic discovery (BERTopic / LDA)
+4. Per-topic sentiment measurement
+5. Competitor benchmarking within the same category
+6. Conclusions
+
+## Pipeline
+
+<Steps>
+  <Step title="Data Extraction and Cleaning">
+    Two datasets are loaded:
+
+    - **`trustpilot-reviews-123k.csv`** — 123,181 Trustpilot reviews across many companies, with columns `category`, `company`, `description`, `title`, `review`, and `stars`. No null values.
+    - **`emp_100_reviews.xlsx`** — a summary table listing companies with at least 100 reviews, including `median_stars`, `media_stars`, and `std_stars`.
+
+    ```python
+    import pandas as pd
+    from bertopic import BERTopic
+    from sklearn.feature_extraction.text import CountVectorizer
+    from transformers import pipeline
+    import nltk
+    from nltk.stem import WordNetLemmatizer
+    import re
+
+    df = pd.read_csv("data/trustpilot-reviews-123k.csv")
+    summary = pd.read_csv("data/emp_100_reviews.xlsx - Sheet1.csv")
+    ```
+
+    Text is normalised with a cleaning function that removes newlines, lowercases all text, and strips special characters:
+
+    ```python
+    def limpieza(texto: str) -> str:
+        texto = texto.replace("\n", " ")       # remove line breaks
+        texto = texto.lower()                   # lowercase
+        texto = re.sub(r"[^\w ]+", "", texto)   # strip special characters
+        return texto
+
+    df = df.assign(
+        title       = df.title.apply(limpieza),
+        review      = df.review.apply(limpieza),
+        description = df.description.apply(limpieza),
+    )
+    ```
+
+    Competitors are identified as all companies in the `Vehicles & Transportation` category with ≤ 100 reviews, excluding `fixauto.com` itself (44 competitors identified).
+  </Step>
+
+  <Step title="Global Sentiment Analysis">
+    Sentiment is inferred using **DistilBERT fine-tuned on SST-2** (`distilbert-base-uncased-finetuned-sst-2-english`) via the HuggingFace `transformers` pipeline. Reviews are processed in batches of 64 and truncated to 512 tokens.
+
+    ```python
+    from transformers import pipeline
+
+    sentiment_pipe = pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english",
+        truncation=True,
+        max_length=512,
+        device=-1   # CPU; change to 0 for GPU
+    )
+
+    def batch_sentiment(texts, batch_size=64):
+        results = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size].tolist()
+            out = sentiment_pipe(batch)
+            results.extend(out)
+        labels = [r["label"] for r in results]
+        scores = [r["score"] for r in results]
+        return labels, scores
+
+    labels_e, scores_e = batch_sentiment(df_empresa["review"])
+    data_empresa["sentiment"] = labels_e
+    data_empresa["sentiment_score"] = scores_e
+    ```
+
+    Both `fixauto.com` and the competitor pool are scored. The average star rating for both groups is **3.0**.
+  </Step>
+
+  <Step title="Topic Discovery">
+    Topics are discovered with **BERTopic**, which combines sentence-transformer embeddings with HDBSCAN clustering and c-TF-IDF to surface representative keywords per topic. The number of topics is controlled via the `N_TOPICS` configuration variable (default **8**).
+
+    ```python
+    N_TOPICS = 8
+    TOP_WORDS = 12
+    MIN_TOPIC_DOCS = 10
+    TARGET = "fixauto.com"
+    CAT = "Vehicles & Transportation"
+    ```
+
+    Topics are interpreted from the top-12 keywords returned by BERTopic for each cluster.
+  </Step>
+
+  <Step title="Per-Topic Sentiment">
+    After topics are assigned to each review, the DistilBERT sentiment scores are aggregated per topic to identify which subjects generate the most positive or negative feedback for `fixauto.com`.
+  </Step>
+
+  <Step title="Competitor Benchmarking">
+    The 44 competitor companies are scored with the same DistilBERT pipeline. Aggregated sentiment distributions and average star ratings are compared against `fixauto.com` to place it in the competitive landscape.
+
+    The summary comparison:
+
+    | Company | Average Stars |
+    |---|---|
+    | fixauto.com | 3.0 |
+    | Competitors (median) | 3.0 |
+  </Step>
+
+  <Step title="Conclusions">
+    Topic-level sentiment scores and competitor benchmarks are combined into a final report that highlights the subjects where `fixauto.com` outperforms or underperforms its peers, enabling targeted operational improvements.
+  </Step>
+</Steps>
+
+## Topic Modeling
+
+BERTopic is chosen over classical LDA because it produces more coherent topics at small corpus sizes and leverages pre-trained semantic embeddings. The workflow is:
+
+1. Encode all reviews with a sentence-transformer model.
+2. Reduce dimensionality with UMAP.
+3. Cluster with HDBSCAN.
+4. Extract top-12 keywords per cluster using c-TF-IDF to represent each topic.
+
+The `N_TOPICS = 8` setting limits discovery to the eight most populated topic clusters, with any cluster containing fewer than `MIN_TOPIC_DOCS = 10` documents excluded.
+
+```python
+from bertopic import BERTopic
+from sklearn.feature_extraction.text import CountVectorizer
+
+vectorizer_model = CountVectorizer(stop_words="english")
+topic_model = BERTopic(
+    nr_topics=N_TOPICS,
+    top_n_words=TOP_WORDS,
+    min_topic_size=MIN_TOPIC_DOCS,
+    vectorizer_model=vectorizer_model,
+)
+
+topics, probs = topic_model.fit_transform(df_empresa["review"].tolist())
+```
+
+## Competitor Benchmarking
+
+Competitors are all companies in the same Trustpilot category that have at least 100 reviews:
+
+```python
+competencia = summary.query(
+    "category == @CAT & n_reviews <= 100 & company != @TARGET"
+).company
+
+df_competencia = df[df.company.isin(competencia)]
+df_empresa     = df[df.company == TARGET]
+```
+
+The 44 competitors include companies such as `www.kwik-fit.com`, `www.halfords.com`, `www.eurocarparts.com`, and `1stchoice.co.uk`. Sentiment and star-rating distributions are compared side-by-side to determine where `fixauto.com` stands relative to the market.
+
+## Results
+
+- Both `fixauto.com` and the competitor pool share an average star rating of **3.0**, suggesting broad parity on overall satisfaction.
+- Topic-level analysis reveals the specific service dimensions (e.g., communication, repair quality, wait times) that drive positive or negative sentiment for `fixauto.com`.
+- Per-topic sentiment breakdowns allow prioritising which operational areas would most improve the aggregate review score.
+- Competitor benchmarking identifies peers where specific topics are handled better, providing actionable competitive intelligence.

@@ -1,0 +1,175 @@
+---
+title: "House Price Prediction: Feature Engineering and Regression"
+sidebarTitle: "House Prices"
+description: "Predict house sale prices using advanced feature engineering and supervised regression techniques on the Ames Housing dataset."
+---
+
+This project predicts house sale prices in a two-phase study. **Phase 1** focuses on exploratory analysis, preprocessing, and feature engineering of the raw dataset (`house_pricing.csv`). **Phase 2** applies supervised regression methods to the cleaned feature matrix (`data_ml.csv`) to select the best performing model.
+
+## Dataset
+
+The source file `house_pricing.csv` contains **1,460 rows and 81 columns** covering a wide variety of property attributes for homes in Ames, Iowa. After preprocessing and one-hot encoding, the feature-engineered output `data_ml.csv` expands to **172 columns**.
+
+Key columns include:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `MSSubClass` | int64 | Dwelling type (e.g., 1-story, 2-story) |
+| `MSZoning` | object | General zoning classification |
+| `LotFrontage` | float64 | Linear feet of street connected to property |
+| `LotArea` | int64 | Lot size in square feet |
+| `OverallQual` | int64 | Overall material and finish quality (1–10) |
+| `YearBuilt` | int64 | Original construction year |
+| `GrLivArea` | int64 | Above-ground living area (sq ft) |
+| `GarageCars` | int64 | Garage capacity (number of cars) |
+| `SalePrice` | int64 | **Target variable** — sale price in USD |
+
+Columns with the highest missing-value rates include `PoolQC` (99.52% missing), `MiscFeature` (96.30%), `Alley` (93.77%), and `Fence` (80.75%).
+
+## Phase 1: Pre-processing & Feature Engineering
+
+The first notebook (`Pre-processing and feature engineering.ipynb`) inspects every attribute, measures its correlation with `SalePrice`, handles missing data, and produces an ML-ready dataset.
+
+### Missing Value Handling
+
+Missing value rates are computed per column. Attributes with extremely high rates (e.g., `Alley` at 93.77%) are dropped. Others are imputed by mode or mean:
+
+```python
+import pandas as pd
+from sklearn import preprocessing
+
+data = pd.read_csv("house_pricing.csv")
+
+# Compute missing value percentages
+data_mv = round(
+    data.isnull().sum()[data.isnull().any()] * 100 / data.shape[0], 2
+)
+# Example output:
+# LotFrontage     17.74
+# Alley           93.77
+# MasVnrType       0.55
+# FireplaceQu     47.26
+# PoolQC          99.52
+# ...
+
+# Impute LotFrontage with mean
+data.LotFrontage.fillna(round(data.LotFrontage.mean(), 0), inplace=True)
+
+# Impute MSZoning with mode
+data.MSZoning.fillna(data.MSZoning.mode().iloc[0], inplace=True)
+```
+
+### Encoding Categorical Variables
+
+Categorical columns are label-encoded for correlation analysis, then one-hot encoded for the final ML feature matrix:
+
+```python
+le = preprocessing.LabelEncoder()
+
+def analisis(attr):
+    df = data[[attr, 'SalePrice']]
+    if df[attr].dtype == 'object':
+        df[attr] = le.fit_transform(df[attr])
+    corr = df.corr().iloc[0, 1]
+    print(f'{attr} and SalePrice: {round(corr, 2)}')
+```
+
+### Feature Creation and Selection
+
+Each attribute is evaluated via a custom `analisis()` function that:
+1. Plots the value distribution (histogram or bar chart)
+2. Plots the relationship with `SalePrice` (scatter or box plot)
+3. Reports the Pearson correlation coefficient with `SalePrice`
+
+Columns with negligible correlation or near-zero variance are excluded from `data_ml.csv`.
+
+## Phase 2: Supervised Methods
+
+The second notebook (`Supervised methods.ipynb`) loads `data_ml.csv` (1,460 rows × 172 columns) and benchmarks six regression algorithms.
+
+### Regression Models Compared
+
+- **Linear Regression**
+- **K-Nearest Neighbors (KNN)**
+- **Gradient Boosting**
+- **Random Forest**
+- **Support Vector Machine (SVM)**
+- **Neural Network (MLPRegressor)**
+
+Each model is evaluated on both the raw `SalePrice` scale and a **log-transformed** `SalePrice` scale (which produces a more normal distribution):
+
+```python
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_validate, KFold
+from sklearn.metrics import mean_absolute_error
+from sklearn.compose import TransformedTargetRegressor
+
+data = pd.read_csv("data_ml.csv")
+# Shape: (1460, 172)
+
+data_train, data_test = train_test_split(data, test_size=0.2, random_state=141)
+
+train_x = data_train.drop(columns="SalePrice")
+train_y = data_train["SalePrice"]
+test_x  = data_test.drop(columns="SalePrice")
+test_y  = data_test["SalePrice"]
+
+main_kfold = KFold(10, shuffle=True, random_state=45)
+scoring = {
+    'nmae': 'neg_mean_absolute_error',
+    'nmse': 'neg_mean_squared_error',
+    'r2':   'r2'
+}
+```
+
+### Model Training — Linear Regression Example
+
+```python
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import RobustScaler
+
+lr_pipe = Pipeline([
+    ('scale', RobustScaler()),
+    ('lr', LinearRegression(n_jobs=-1))
+])
+
+lr_scores = cross_validate(
+    lr_pipe, train_x, train_y,
+    scoring=scoring, cv=main_kfold,
+    return_train_score=True, return_estimator=True, n_jobs=-1
+)
+lr_pipe.fit(train_x, train_y)
+
+# With log transformation on the target
+lr_trans = TransformedTargetRegressor(
+    lr_pipe, func=np.log, inverse_func=np.exp
+)
+lr_trans.fit(train_x, train_y)
+```
+
+### Evaluation Metrics
+
+Models are evaluated on:
+- **MAE** (Mean Absolute Error) — primary metric, in USD
+- **MSE** (Mean Squared Error)
+- **R²** (coefficient of determination)
+
+Cross-validation is performed with 10-fold `KFold`. Results for Linear Regression:
+
+| Split | MAE |
+|-------|-----|
+| Train (raw) | 15,282 |
+| Test (raw) | 10,317,527,532 *(highly unstable without log transform)* |
+| Train (log-transformed) | 12,917 |
+| Test (log-transformed) | 18,189 |
+
+The dramatic difference between raw and log-transformed test MAE highlights the importance of target normalization for linear models.
+
+## Results
+
+Across all six regression models, **Gradient Boosting** achieves the lowest test MAE on the log-transformed target, followed by **Random Forest**. Linear models (Linear Regression, SVM) benefit the most from log-transforming `SalePrice`. Non-parametric methods (KNN) are sensitive to the feature scale and number of neighbors.
+
+Key takeaway: combining thorough feature engineering (Phase 1) with log-transformed targets and an ensemble method (Gradient Boosting or Random Forest) yields the best generalization performance on this dataset.

@@ -1,0 +1,102 @@
+---
+title: "Exploratory Analysis of Barcelona's Climate Data"
+sidebarTitle: "Barcelona Climate"
+description: "Explore temperature, precipitation, and seasonal patterns in Barcelona using Python and pandas, with time-series visualizations."
+---
+
+This notebook performs a century-spanning exploratory analysis of daily weather observations recorded at the Barcelona station (station ID `SPE00119891`), covering the period from 1920 to 2018. Using Python's pandas and matplotlib libraries, the analysis surfaces long-term precipitation trends, seasonal temperature patterns, and the range between daily maximum and minimum temperatures across nearly 70,000 daily records.
+
+## Dataset
+
+The data is sourced from the file `datasets/barcelona-weather/Barcelona-Weather.csv`, a NOAA Global Historical Climatology Network (GHCN) daily export for Barcelona, Spain. The raw file contains **67,809 rows** and **16 columns**, including station metadata and weather measurements.
+
+| Column | Type | Description |
+|---|---|---|
+| `STATION` | object | Station identifier (`SPE00119891`) |
+| `NAME` | object | Station name (`BARCELONA, SP` or `BARCELONA AEROPUERTO, SP`) |
+| `LATITUDE` | float64 | Station latitude (41.4192°) |
+| `LONGITUDE` | float64 | Station longitude (2.1253°) |
+| `ELEVATION` | float64 | Elevation in metres (412.0) |
+| `DATE` | datetime64 | Observation date |
+| `PRCP` | float64 | Daily precipitation in mm |
+| `SNWD` | float64 | Snow depth (nearly all missing) |
+| `TAVG` | float64 | Average daily temperature |
+| `TMAX` | float64 | Maximum daily temperature (°C) |
+| `TMIN` | float64 | Minimum daily temperature (°C) |
+
+The dataset contains observations from two station names: **BARCELONA, SP** (~53 % of records) and **BARCELONA AEROPUERTO, SP** (~47 % of records).
+
+## Analyses Performed
+
+1. **Initial inspection** — data types, shape, and null-value audit. All measurement columns (`PRCP`, `SNWD`, `TAVG`, `TMAX`, `TMIN`) contain at least some missing values; `SNWD` has only 2 non-null records out of 67,809.
+
+2. **Column selection** — the analysis narrows to the five most relevant columns: `NAME`, `DATE`, `PRCP`, `TMAX`, and `TMIN`, discarding attribute-flag columns and the near-empty snow-depth field.
+
+3. **Null removal** — rows with any missing value in the selected columns are dropped (`dropna(axis=0)`), reducing the working dataset to **59,127 rows** covering 1926 onward (temperature readings were absent for the earliest years).
+
+4. **Month and year feature engineering** — `mes` (month number) and `año` (year) columns are extracted from the `DATE` field to enable temporal aggregations.
+
+5. **Historical daily precipitation plot** — a full time-series line chart of raw daily `PRCP` values from 1925 to 2018 is produced.
+
+6. **Monthly maximum precipitation** — data is grouped by year and month, and the maximum daily precipitation per month-year combination is computed. A new `fecha` (date) column is created, set to the first day of each month, to anchor the aggregated time series.
+
+7. **Monthly temperature analysis** — similar groupings are applied to `TMAX` and `TMIN` to reveal seasonal temperature cycles.
+
+## Key Visualizations
+
+- **Daily precipitation time series (1925–2018)** — a wide-format bar/line chart using the `ggplot` style, with years on the x-axis and millimetres of rain on the y-axis, exposing sporadic high-precipitation events against a generally low-rainfall baseline.
+- **Monthly maximum daily precipitation** — a time-series plot of the highest single-day rainfall recorded within each calendar month, smoothing out day-to-day noise while retaining extreme events.
+- **Maximum and minimum temperature time series** — seasonal oscillation plots of `TMAX` and `TMIN` showing the annual temperature cycle and any long-term warming trends.
+
+## Code Snippet
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore")
+
+# Load the dataset, parsing the DATE column directly as datetime
+data = pd.read_csv(
+    'datasets/barcelona-weather/Barcelona-Weather.csv',
+    parse_dates=['DATE'],
+    low_memory=False
+)
+
+# Select only the columns needed for analysis
+features = ['NAME', 'DATE', 'PRCP', 'TMAX', 'TMIN']
+df = data[features]
+
+# Remove rows that have any missing value
+df = df.dropna(axis=0)
+
+# Extract month and year for temporal aggregations
+df['mes'] = df.DATE.dt.month
+df['año'] = df.DATE.dt.year
+
+# Compute the maximum daily precipitation per year-month
+df_PRCP = df.groupby(['año', 'mes'], as_index=False).PRCP.max()
+
+# Build a proper date column anchored to the first day of each month
+df_PRCP['fecha'] = list(
+    map(lambda x, y: '01-' + str(x) + '-' + str(y), df_PRCP.mes, df_PRCP.año)
+)
+df_PRCP['fecha'] = pd.to_datetime(df_PRCP.fecha, format='%d-%m-%Y')
+
+# Plot historical daily precipitation
+plt.style.use('ggplot')
+df.plot(x='DATE', y='PRCP', color='skyblue', figsize=(19, 7), grid=True, rot=0)
+plt.xlabel('años')
+plt.ylabel('mm')
+plt.title('Precipitación diaria 1925–2018')
+plt.show()
+```
+
+## Findings
+
+- **Data coverage begins in earnest from 1926**, when temperature readings (`TMAX` / `TMIN`) become available alongside precipitation. Earlier records (1920–1925) contain only precipitation data.
+- **Two station names** appear in the dataset, reflecting a shift between a city-centre station and the airport station at some point during the record period.
+- **Precipitation is highly irregular**: most days record zero or very low rainfall, while occasional extreme events stand out clearly in the full time-series plot.
+- **Seasonal temperature patterns** are well defined, with summer maxima regularly exceeding 30 °C and winter minima occasionally falling below 5 °C, consistent with Barcelona's Mediterranean climate.
+- The `SNWD` (snow depth) field is effectively empty, confirming that measurable snow accumulation at sea-level Barcelona is exceedingly rare across the entire 98-year record.
