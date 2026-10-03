@@ -1,7 +1,7 @@
 ---
-title: "Oxfam Donor and Donation Analytics"
+title: "Oxfam Intermón: Donor Profiles and Donation Analytics"
 sidebarTitle: "Oxfam Donors"
-description: "Analyze Oxfam contributor and donation data to understand donor behavior, donation amounts, and contribution patterns."
+description: "Analyze Oxfam Intermón contributor profiles and 2016 donation transactions to uncover donor behavior, monthly peaks, and recruitment channel insights."
 ---
 
 This notebook explores data provided by Oxfam Intermón, the Spanish arm of the Oxfam confederation, to understand the characteristics of its contributors and the patterns behind their donations. The analysis is written in Python using pandas, NumPy, and matplotlib, and is structured around two separate but related datasets: one describing the donors themselves and one recording individual donation transactions.
@@ -53,13 +53,17 @@ The gifts dataset covers **2016 only** (confirmed by `gifts.año.unique()` retur
 
 1. **Year and month extraction** — `año` and `mes` columns are added to the gifts dataframe: `gifts['año'] = gifts['payment_date'].dt.year` and `gifts['mes'] = gifts['payment_date'].dt.month`.
 
-2. **Month with the highest number of donations** — a `groupby('mes')` aggregation counts donations (`account_id.count`) and averages amounts (`payment_amount.mean`) per month. **April (month 4)** has the highest total with **9,114 transactions**, and its average donation amount is **€16.18**.
+2. **Month with the highest number of donations** — a `groupby('mes')` aggregation counts donations (`account_id.count`) and averages amounts (`payment_amount.mean`) per month. **April (month 4)** has the highest total with **9,114 transactions**, and its average donation amount is **€16.18**. December has the highest average transaction amount (**€20.85**).
 
 3. **Donations per account** — a horizontal bar chart (`barh`) of the top 20 accounts by donation count is produced using randomly assigned colours to identify the most active donors.
 
 4. **One-off vs. regular donation mix** — `gifts.gift_type.value_counts()` confirms the overwhelming dominance of regular (`Cuotas`) subscriptions (100,996) over one-off (`Puntual`) gifts (1,555).
 
-5. **Average donation amount by month** — the `groupby` results are inspected across all 12 months to identify whether donation amounts fluctuate seasonally, with December showing the highest average payment (`€20.85` per transaction).
+5. **Monthly total by recruitment channel** — `Cuotas` gifts are joined to the contributor table (`merge` on `account_id`) and then grouped by `recruitment_channel` and `mes` to produce a stacked horizontal bar chart of total monthly amounts per channel. Phone-recruited (`llamada`) donors show their highest monthly contribution in December.
+
+6. **Annualised quota by gender and seniority group** — contributors are classified into four tenure bands (`<1`, `1<3`, `3<5`, `>5` years). For female donors, the annualised regular quota (sum of `Cuotas` payments per year per account) is averaged within each band to identify which seniority group has the highest average. The `>5` year group has the highest average annualised quota; within that group, the `recruitment_channel` with the highest average is identified via a bar chart.
+
+7. **Box-plot by recruitment channel** — annualised `Cuotas` amounts below €500 per account are shown in a grouped box-plot by `recruitment_channel`, highlighting that `apartado_correos`, `web`, and `puerta_a_puerta` produce the highest median annualised contributions.
 
 ## Code Snippet
 
@@ -111,8 +115,9 @@ donantes_mayores['antigüedad'] = donantes_mayores.antigüedad.round(0).astype('
 ## Findings
 
 - **All donation data is from 2016** — the analysis is a single-year snapshot.
-- **April is the busiest month** for donations (9,114 transactions), while **December has the highest average transaction amount** (€20.85).
+- **April is the busiest month** for donations (9,114 transactions), while **December has the highest average transaction amount** (€20.85) and the highest total monthly contribution from phone-recruited (`llamada`) donors.
 - **Regular monthly subscriptions (`Cuotas`)** dominate the gift portfolio, representing ~98.5 % of all transactions. One-off (`Puntual`) donations are relatively rare.
 - The **75th-percentile recruitment date is 2013-07-30**, meaning 25 % of active donors were recruited after that date, while 75 % have been supporters for at least three years by end of 2016.
+- Among female donors, those with **more than 5 years of tenure** have the highest average annualised quota. The recruitment channels yielding the highest median annual contributions (below €500) are **`apartado_correos`**, **`web`**, and **`puerta_a_puerta`**.
 - **Null values in `date_of_birth` and `original_recruitment_date`** require care when computing tenure or age-based analyses; the notebook explicitly filters out NaT rows before performing date arithmetic.
 - The `frequency` column is null for one-off donations (as expected) and `Mensual` for regular subscriptions; no other frequencies appear in the 2016 data.

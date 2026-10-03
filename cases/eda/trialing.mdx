@@ -1,7 +1,7 @@
 ---
-title: "Trialing Data: Cleaning and Results Visualization"
+title: "Trialing Clinical Trials: Data Cleaning and Visualization"
 sidebarTitle: "Trialing"
-description: "Clean and visualize trial competition results data using Python pandas and matplotlib, from raw CSV to publication-ready charts."
+description: "Clean and visualize oncology clinical trial registry data in Python and R, from sponsor normalization and city extraction to Janssen competitive charting."
 ---
 
 This project works with clinical trial competition data collected by the Trialing platform — a registry of oncology clinical trials conducted at hospitals across Spain. Two complementary notebooks cover the full pipeline: the first cleans and structures the raw CSV export, and the second loads the cleaned output to produce publication-quality charts analysing competitive positioning across sponsors and hospital centres.
@@ -106,7 +106,8 @@ The visualisation notebook reads `clean_datos Trialing.csv` and focuses on **Jan
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
-library(skimr)
+library(extrafont)   # extra font families used in chart titles
+library(skimr)       # summary statistics on the cleaned dataset
 
 datos <- read.csv('clean_datos Trialing.csv', stringsAsFactors = FALSE, na.strings = "")
 

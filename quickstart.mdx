@@ -1,7 +1,7 @@
 ---
 title: "Get Started with Data Science & Analytics Cases"
 sidebarTitle: "Quickstart"
-description: "Clone the repository, set up your Python environment, and run your first data science notebook in five minutes."
+description: "Clone the repository, set up a Python virtual environment, install all core dependencies, and run your first data science notebook in under five minutes."
 ---
 
 This guide walks you through everything you need to go from zero to running a complete data science notebook end-to-end. By the end you will have the repository on your machine, a clean virtual environment with all core dependencies installed, Jupyter running in your browser, and the breast-cancer classification notebook fully executed.
@@ -51,10 +51,10 @@ This guide walks you through everything you need to go from zero to running a co
     Install the libraries used across the notebook case studies in one command:
 
     ```bash
-    pip install jupyter pandas numpy scikit-learn matplotlib seaborn xgboost lightgbm nltk
+    pip install jupyter pandas numpy scikit-learn matplotlib seaborn xgboost lightgbm nltk tensorflow scikeras
     ```
 
-    This covers data manipulation (`pandas`, `numpy`), machine learning (`scikit-learn`, `xgboost`, `lightgbm`), visualisation (`matplotlib`, `seaborn`), and natural-language processing (`nltk`). Individual case studies may list additional requirements — check the `README.md` inside each project sub-folder for details.
+    This covers data manipulation (`pandas`, `numpy`), machine learning (`scikit-learn`, `xgboost`, `lightgbm`), visualisation (`matplotlib`, `seaborn`), natural-language processing (`nltk`), and deep-learning (`tensorflow`, `scikeras`). Individual case studies may list additional requirements — check the `README.md` inside each project sub-folder for details.
   </Step>
 
   <Step title="Launch Jupyter">
@@ -76,7 +76,7 @@ This guide walks you through everything you need to go from zero to running a co
     Breast cancer.ipynb
     ```
 
-    Once the notebook is open, run all cells in order via **Kernel → Restart & Run All**. The notebook uses `pandas`, `matplotlib`, `numpy`, and `seaborn`, all of which were installed in Step 3.
+    Once the notebook is open, run all cells in order via **Kernel → Restart & Run All**. The notebook uses `pandas`, `matplotlib`, `numpy`, `seaborn`, `scikit-learn`, `tensorflow`, and `scikeras`, all of which were installed in Step 3.
   </Step>
 
 </Steps>

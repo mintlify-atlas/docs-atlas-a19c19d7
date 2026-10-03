@@ -1,10 +1,10 @@
 ---
-title: "Exploratory Analysis of Barcelona's Climate Data"
+title: "Barcelona Climate EDA: Temperature and Precipitation Trends"
 sidebarTitle: "Barcelona Climate"
-description: "Explore temperature, precipitation, and seasonal patterns in Barcelona using Python and pandas, with time-series visualizations."
+description: "Explore precipitation and temperature patterns in Barcelona using Python and pandas on 70,000 NOAA GHCN daily weather records spanning 1920 to 2018."
 ---
 
-This notebook performs a century-spanning exploratory analysis of daily weather observations recorded at the Barcelona station (station ID `SPE00119891`), covering the period from 1920 to 2018. Using Python's pandas and matplotlib libraries, the analysis surfaces long-term precipitation trends, seasonal temperature patterns, and the range between daily maximum and minimum temperatures across nearly 70,000 daily records.
+This notebook performs a century-spanning exploratory analysis of daily weather observations recorded at the Barcelona station (station ID `SPE00119891`), covering the period from 1920 to 2018. Using Python's pandas and matplotlib libraries, the analysis surfaces long-term precipitation trends, seasonal temperature patterns, and the range between daily maximum and minimum temperatures across nearly 70,000 daily records. Temperature readings (`TMAX` / `TMIN`) only become available from 1926 onward, so all time-series charts are labelled 1925–2018.
 
 ## Dataset
 
@@ -18,11 +18,16 @@ The data is sourced from the file `datasets/barcelona-weather/Barcelona-Weather.
 | `LONGITUDE` | float64 | Station longitude (2.1253°) |
 | `ELEVATION` | float64 | Elevation in metres (412.0) |
 | `DATE` | datetime64 | Observation date |
-| `PRCP` | float64 | Daily precipitation in mm |
-| `SNWD` | float64 | Snow depth (nearly all missing) |
-| `TAVG` | float64 | Average daily temperature |
+| `PRCP` | float64 | Daily precipitation in mm (65,970 non-null) |
+| `PRCP_ATTRIBUTES` | object | Quality flags for PRCP |
+| `SNWD` | float64 | Snow depth (only 2 non-null records across the entire dataset) |
+| `SNWD_ATTRIBUTES` | object | Quality flags for SNWD |
+| `TAVG` | float64 | Average daily temperature (16,360 non-null) |
+| `TAVG_ATTRIBUTES` | object | Quality flags for TAVG |
 | `TMAX` | float64 | Maximum daily temperature (°C) |
+| `TMAX_ATTRIBUTES` | object | Quality flags for TMAX |
 | `TMIN` | float64 | Minimum daily temperature (°C) |
+| `TMIN_ATTRIBUTES` | object | Quality flags for TMIN |
 
 The dataset contains observations from two station names: **BARCELONA, SP** (~53 % of records) and **BARCELONA AEROPUERTO, SP** (~47 % of records).
 
@@ -40,13 +45,16 @@ The dataset contains observations from two station names: **BARCELONA, SP** (~53
 
 6. **Monthly maximum precipitation** — data is grouped by year and month, and the maximum daily precipitation per month-year combination is computed. A new `fecha` (date) column is created, set to the first day of each month, to anchor the aggregated time series.
 
-7. **Monthly temperature analysis** — similar groupings are applied to `TMAX` and `TMIN` to reveal seasonal temperature cycles.
+7. **Annual maximum precipitation** — data is further grouped by year only to extract the single highest daily rainfall recorded in each calendar year, producing a separate time-series plot.
+
+8. **Daily temperature time series** — `TMAX` and `TMIN` are plotted together over the full date range to reveal seasonal temperature cycles and any long-term trends.
 
 ## Key Visualizations
 
-- **Daily precipitation time series (1925–2018)** — a wide-format bar/line chart using the `ggplot` style, with years on the x-axis and millimetres of rain on the y-axis, exposing sporadic high-precipitation events against a generally low-rainfall baseline.
-- **Monthly maximum daily precipitation** — a time-series plot of the highest single-day rainfall recorded within each calendar month, smoothing out day-to-day noise while retaining extreme events.
-- **Maximum and minimum temperature time series** — seasonal oscillation plots of `TMAX` and `TMIN` showing the annual temperature cycle and any long-term warming trends.
+- **Daily precipitation time series (1925–2018)** — a wide-format line chart using the `ggplot` style, with years on the x-axis and millimetres of rain on the y-axis, exposing sporadic high-precipitation events against a generally low-rainfall baseline.
+- **Monthly maximum daily precipitation (1925–2018)** — a time-series plot of the highest single-day rainfall recorded within each calendar month, smoothing out day-to-day noise while retaining extreme events.
+- **Annual maximum daily precipitation (1925–2018)** — a time-series plot of the highest single-day rainfall per year, produced with an orange colour palette.
+- **Maximum and minimum temperature time series (1925–2018)** — a combined line chart of `TMAX` (sea-green) and `TMIN` (light-green) showing the annual temperature cycle and long-term trends.
 
 ## Code Snippet
 

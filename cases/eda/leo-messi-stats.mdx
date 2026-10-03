@@ -1,7 +1,7 @@
 ---
 title: "Leo Messi Career Statistics: Exploratory Data Analysis"
 sidebarTitle: "Messi Stats"
-description: "Analyze Leo Messi's career goals by club, match, time period, and Champions League performance using pandas and matplotlib."
+description: "Analyze Leo Messi's 651 career goals by club, match, period, and Champions League performance using R, dplyr, and ggplot2 visualizations."
 ---
 
 This notebook analyses Leo Messi's scoring record at FC Barcelona through the lens of data, examining 651 goals across competitions from his debut through early 2019. Written in R, the analysis leverages `dplyr` for data manipulation and `ggplot2` / `ggthemes` for visualisation. The stated objective is to use data to understand Messi's strengths — and to look for any weak points — with a deep dive into both La Liga and the UEFA Champions League.
@@ -34,6 +34,14 @@ The source file is `Lionel Messi Goals.csv` (semicolon-delimited), containing **
 - `Competition.Name` values labelled `Unknown` are confirmed (by inspecting opponents) to belong to La Liga, so they are merged with `Liga` records.
 
 ## Career Analysis
+
+### Goals per Competition (All Competitions)
+
+Before drilling into league-specific data, the notebook produces a **pie chart** of total goals split by `Competition.Name` (`Liga`, `Champions League`, `Copa del Rey`, and `Unknown` / NA). Percentages are computed and overlaid as text labels. This establishes the relative weight of each competition in Messi's scoring record.
+
+### Goals per Year (All Competitions)
+
+A **bar chart** of `year` vs. total goals across all competitions shows year-by-year output from debut through early 2019, confirming that high performance begins around 2009 and peaks in 2012.
 
 ### Goals per Club (La Liga)
 
@@ -98,6 +106,10 @@ The same suite of analyses is repeated exclusively on the subset of records wher
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
+library(extrafont)   # extra font families for chart titles
+library(party)       # decision tree support
+library(repr)        # control plot dimensions in Jupyter
+library(skimr)       # summary statistics
 
 # Load data
 data <- read.csv('Lionel Messi Goals.csv', sep = ';',

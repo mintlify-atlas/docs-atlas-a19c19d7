@@ -85,7 +85,7 @@ Columns with negligible correlation or near-zero variance are excluded from `dat
 
 ## Phase 2: Supervised Methods
 
-The second notebook (`Supervised methods.ipynb`) loads `data_ml.csv` (1,460 rows × 172 columns) and benchmarks six regression algorithms.
+The second notebook (`Supervised methods.ipynb`) loads `data_ml.csv` (1,460 rows × 172 columns) and benchmarks seven regression algorithms.
 
 ### Regression Models Compared
 
@@ -93,8 +93,9 @@ The second notebook (`Supervised methods.ipynb`) loads `data_ml.csv` (1,460 rows
 - **K-Nearest Neighbors (KNN)**
 - **Gradient Boosting**
 - **Random Forest**
+- **Decision Tree**
 - **Support Vector Machine (SVM)**
-- **Neural Network (MLPRegressor)**
+- **Neural Network (Keras / KerasRegressor)**
 
 Each model is evaluated on both the raw `SalePrice` scale and a **log-transformed** `SalePrice` scale (which produces a more normal distribution):
 
@@ -102,7 +103,7 @@ Each model is evaluated on both the raw `SalePrice` scale and a **log-transforme
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, cross_validate, KFold
+from sklearn.model_selection import train_test_split, cross_validate, GridSearchCV, KFold
 from sklearn.metrics import mean_absolute_error
 from sklearn.compose import TransformedTargetRegressor
 
@@ -168,8 +169,20 @@ Cross-validation is performed with 10-fold `KFold`. Results for Linear Regressio
 
 The dramatic difference between raw and log-transformed test MAE highlights the importance of target normalization for linear models.
 
+The full benchmark across all seven models (best MAE per model, raw or log-transformed):
+
+| Model | Best Test MAE (USD) | Log-transform helps? |
+|-------|--------------------:|----------------------|
+| Linear Regression | 18,189 | Yes |
+| K-Nearest Neighbors | 24,311 | No |
+| **Gradient Boosting** | **14,586** | **Yes** |
+| Random Forest | 17,344 | No |
+| Decision Tree | 25,051 | Yes |
+| Support Vector Machine | 16,765 | Yes |
+| Neural Network | 18,185 | No |
+
 ## Results
 
-Across all six regression models, **Gradient Boosting** achieves the lowest test MAE on the log-transformed target, followed by **Random Forest**. Linear models (Linear Regression, SVM) benefit the most from log-transforming `SalePrice`. Non-parametric methods (KNN) are sensitive to the feature scale and number of neighbors.
+Across all seven regression models, **Gradient Boosting** achieves the lowest test MAE (14,586 USD) on the log-transformed target. SVM and Linear Regression benefit the most from log-transforming `SalePrice`, while tree-based ensembles (Random Forest) and non-parametric methods (KNN) are less sensitive to the transformation. Decision Tree produces the worst ensemble-level performance, confirming the value of bagging and boosting over a single tree.
 
 Key takeaway: combining thorough feature engineering (Phase 1) with log-transformed targets and an ensemble method (Gradient Boosting or Random Forest) yields the best generalization performance on this dataset.

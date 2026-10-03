@@ -1,10 +1,10 @@
 ---
-title: "Inditex (Zara) Stock Price Analysis"
+title: "Inditex (Zara Parent) Stock Price EDA and DCA Simulation"
 sidebarTitle: "Zara Stocks"
-description: "Explore Inditex (ITX) historical stock price data with time-series analysis, trend detection, and return calculations in Python."
+description: "Explore Inditex (ITX) stock price history and simulate a €50 monthly DCA strategy across 16 years of ITX trading data using Python and pandas."
 ---
 
-This notebook presents an investment scenario built around Inditex (ticker: ITX) — the parent company of Zara — using historical daily stock prices to simulate a systematic investment strategy. A hypothetical investor commits **€50 per month** to ITX shares starting from the company's first trading day (23 May 2001), purchasing at the opening price on the last Thursday of each month (or the next available trading day). All shares are sold on 28 December 2017 at the closing price, with a 2 % broker fee applied to each purchase. The notebook calculates the final portfolio value and total return, while also performing exploratory time-series analysis of the full price history.
+This notebook presents an investment scenario built around Inditex (ticker: ITX) — the parent company of Zara — using historical daily stock prices to simulate a systematic investment strategy. A hypothetical investor receives their salary on the last Thursday of each month and immediately invests **€50** in ITX shares on the last Friday of that month (the following day), purchasing at the opening price (or the next available trading day if that Friday is a market holiday). All shares are sold on 28 December 2017 at the closing price, with a 2 % broker fee applied to each purchase. The notebook calculates the final portfolio value and total return, while also performing exploratory time-series analysis of the full price history.
 
 ## Dataset
 
@@ -68,18 +68,19 @@ A horizontal bar chart of `Dia_semana.value_counts()` confirms that the dataset 
 
 ### Price Time-Series Visualisation
 
-A full close-price time-series chart is produced to visualise the growth of ITX from its IPO price (~€3.60) through its peak and subsequent movements up to late 2017 (~€29).
+A full opening-price time-series chart is produced to visualise the growth of ITX from its IPO price through its peak and subsequent movements up to late 2017. A supplementary `Valor_accion` column is added, classifying each day as `'revalorizó'` (day closed higher than open) or `'devaluó'` (day closed lower than or equal to open), using a custom `apply` function.
 
 ### Investment Simulation
 
 The core calculation logic:
 
-1. **Identify paydays** — for each month between May 2001 and December 2017, the last Thursday is found.
-2. **Find the next trading day** — if the last Thursday is not a trading day (market holiday), the next available date is selected.
-3. **Purchase shares** — €50 is invested at the opening price of the selected day, minus the 2 % broker fee (effective investment: €49 per transaction).
-4. **Accumulate fractional shares** — the broker allows fractional share purchases, so exactly €49 / `Apertura` shares are acquired each month.
-5. **Sell all shares** — the total accumulated shares are sold at the closing price on 28 December 2017 (`Cierre = 29.17`).
-6. **Calculate net return** — the final portfolio value is compared to the total capital invested.
+1. **Build a full calendar** — a complete daily calendar is created from the IPO date (23 May 2001) to 28 December 2017, with `Dia_semana`, `Mes`, and `Año` columns.
+2. **Identify purchase days** — for each month, the last Friday (`Dia_semana == 'Friday'`) is identified. This is the day after the investor's last-Thursday payday.
+3. **Find the next trading day** — if the last Friday falls on a market holiday (not present in the dataset), the next available trading date is selected by incrementing one day at a time until a match is found in the stock data.
+4. **Purchase shares** — €50 is invested at the opening price of the selected day. The broker retains 2 % of each purchase, so the maximum whole number of shares buyable with €50 at the given price (including the 2 % fee) is computed: `n_acciones` is the largest integer `n` such that `n × Apertura × 1.02 ≤ 50`.
+5. **Accumulate shares** — a running cumulative sum (`N_acciones_acum`) tracks the total shares held over time.
+6. **Sell all shares** — the total accumulated shares are sold at the closing price on 28 December 2017 (`Cierre = 29.17`), yielding a final portfolio value of **€34,175.71**.
+7. **Supplementary charts** — the number of shares purchased each month and the cumulative share count are plotted over time to illustrate the dollar-cost-averaging effect.
 
 ## Key Visualisations
 
@@ -90,7 +91,8 @@ The core calculation logic:
 ## Findings
 
 - **ITX went public at ~€3.60** on 23 May 2001 and reached ~€29.17 at the close on 28 December 2017, representing approximately **8× price appreciation** over 16.6 years.
+- **Final portfolio value: €34,175.71** — the result of investing €50 per month on the last Friday of each month from May 2001 through December 2017, after applying the 2 % broker fee at each purchase and selling all accumulated shares at the 28 December 2017 closing price.
 - **All five weekdays appear** in the trading record; weekend entries are absent, confirming clean data.
-- **September is the most data-rich month** (490 records), likely because it has the fewest public holidays in the Spanish trading calendar.
+- **September is the most data-rich month** (490 records), while February and December have the fewest (313 each), reflecting differences in market holiday frequency.
 - The 2 % broker fee applied at each monthly purchase meaningfully reduces total return compared to a zero-fee scenario — a key parameter sensitivity highlighted by the notebook's simulation design.
 - **Dollar-cost averaging** over the full period smooths out the impact of the significant price volatility visible in the mid-2000s and post-2008 periods.

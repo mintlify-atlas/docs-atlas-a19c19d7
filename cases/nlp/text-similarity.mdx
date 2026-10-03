@@ -1,94 +1,232 @@
 ---
-title: "Computing Similarity Rate Between Two Texts"
+title: "Patent Phrase Similarity: Feature Engineering Pipeline"
 sidebarTitle: "Text Similarity"
-description: "Measure textual similarity between two documents using TF-IDF vectorization and cosine similarity, with a practical Python implementation."
+description: "Extract cosine, Jaccard, and distance features from a patent-phrase dataset and benchmark KNN, Random Forest, Gradient Boosting, and Neural Network models."
 ---
 
-This notebook implements a similarity scoring function that takes two text documents and returns a similarity percentage between 0.0 and 1.0. The approach is applied to a **patent-phrase matching dataset** (36,473 training rows, 36 test rows) where each row pairs an `anchor` phrase with a `target` phrase inside a technical `context`. The continuous `score` column (ranging from 0 to 1) serves as the ground truth. TF-IDF vectorization and cosine similarity provide a lightweight, interpretable baseline for this task.
+This notebook explores text-similarity feature engineering on a **patent-phrase matching dataset** (36,473 training rows, 36 test rows). Each row pairs an `anchor` phrase with a `target` phrase inside a technical `context` (a CPC section code). The continuous `score` column (0–1, scaled to 0–100 as integers) represents the ground-truth similarity. The notebook extracts three similarity features — cosine similarity, Jaccard index, and Euclidean distance — using custom numpy-based functions, then compares KNN, Random Forest, Gradient Boosting, and Neural Network classifiers via GridSearchCV.
 
-## Technique
-
-### TF-IDF Vectorization
-
-**TF-IDF** (Term Frequency × Inverse Document Frequency) converts raw text into a numerical vector where each dimension corresponds to a vocabulary token:
-
-- **TF** (Term Frequency): how often a term appears in the current document.
-- **IDF** (Inverse Document Frequency): a global weight that down-scales terms appearing in many documents and up-scales rare, informative terms.
-
-The result is a sparse matrix where each row is a document and each column is a weighted vocabulary term. When two documents share many high-IDF terms, their TF-IDF vectors point in similar directions.
-
-### Cosine Similarity
-
-**Cosine similarity** measures the angle between two vectors regardless of their magnitude. Given two unit vectors **u** and **v**:
-
-```
-cosine_similarity(u, v) = (u · v) / (||u|| × ||v||)
-```
-
-A value of **1.0** means the vectors are identical (same direction), while **0.0** means they are orthogonal (no shared vocabulary). Negative values are possible in general, but TF-IDF vectors contain only non-negative entries, so the range in practice is [0, 1].
-
-## Implementation
-
-```python
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
-def similarity_rate(text1: str, text2: str) -> float:
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform([text1, text2])
-    score = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-    return float(score[0][0])
-```
-
-The function:
-1. Instantiates a fresh `TfidfVectorizer` for each call.
-2. Fits and transforms both texts together so vocabulary and IDF weights are computed jointly.
-3. Extracts the cosine similarity between the first and second row of the resulting matrix.
-4. Returns a plain Python `float`.
-
-## Usage Example
-
-The notebook loads the patent dataset with `pandas` and explores its structure before applying the similarity metric:
+## Dataset
 
 ```python
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore")
 
 train = pd.read_csv("train.csv")
 test  = pd.read_csv("test.csv")
+sample_submission = pd.read_csv("sample_submission.csv")
 
-print("train:", train.shape)   # (36473, 5)
-print("test: ", test.shape)    # (36, 4)
+print("train:", train.shape)          # (36473, 5)
+print("test: ", test.shape)           # (36, 4)
+print("sample_submission:", sample_submission.shape)   # (36, 2)
 ```
 
-The training set has columns `id`, `anchor`, `target`, `context`, and `score`. The test set is identical minus the `score` column.
+The training set has five columns — `id`, `anchor`, `target`, `context`, and `score`. The test set is identical minus `score`. The `sample_submission` table has `id` and `score` (all initialized to 0). There are no missing values in any column.
 
-Calling `similarity_rate` on a single pair:
+## Preprocessing
+
+### Score Rescaling
+
+The raw `score` column contains floats in [0, 1]. It is multiplied by 100 and cast to `int32` so that the five similarity tiers (0, 25, 50, 75, 100) become integer class labels for multi-class classification.
 
 ```python
-anchor  = "abatement"
-target  = "abatement of pollution"
-context = "A47"
-
-score = similarity_rate(anchor, target)
-print(f"Similarity: {score:.4f}")   # e.g. 0.7071
+train["score"] = (train.score * 100).astype("int32")
 ```
 
-**Interpreting the output:**
+### Context Encoding
 
-| Score | Meaning |
-|---|---|
-| `0.0` | Completely different texts — no shared vocabulary |
-| `0.5` | Moderate overlap — some shared terms |
-| `1.0` | Identical texts — same vocabulary and proportions |
+The `context` column contains alphanumeric CPC section codes (e.g., `"A47"`). Numeric characters are stripped, leaving only the letter prefix, which is then label-encoded:
 
-In the patent dataset, scores between 0.5 and 1.0 indicate that the anchor and target phrases describe the same or very similar concepts within the given technological context (CPC section code).
+```python
+from sklearn import preprocessing
 
-## Applications
+train["context"] = train.context.str.replace("[0-9]+", "")
+le = preprocessing.LabelEncoder()
+train["context"] = le.fit_transform(train["context"])
+```
 
-TF-IDF cosine similarity is a practical first-pass tool for many real-world NLP tasks:
+## Feature Engineering
 
-- **Plagiarism detection** — flag documents with suspiciously high overlap.
-- **Document deduplication** — collapse near-identical records in large corpora.
-- **Recommendation systems** — surface items whose descriptions closely match a user query.
-- **FAQ matching** — route incoming questions to the most semantically similar existing answer.
-- **Patent analysis** — identify overlapping claims between patent filings (the primary use case in this notebook).
+Three similarity features are derived from the raw `anchor` and `target` text pairs using custom Python functions. No external vectorizer library is used; all similarity metrics are computed directly with `numpy`.
+
+### Helper Functions
+
+```python
+def clean_data(text):
+    signs = [",", ";", ":", "¿", "?", "$", "#", ".", "¡", "!"]
+    text = text.lower()
+    for sign in signs:
+        text = text.replace(sign, "")
+    text = text.split(" ")
+    text = [word for word in text if word != ""]
+    return text
+
+def words_similarity(word1, word2):
+    w = word2
+    if len(word2) >= 4:
+        for i in range(3, len(word2)):
+            if word2[: i + 1] in word1:
+                w = word1
+    return w
+
+def counter(text):
+    cnt = {}
+    for word in text:
+        cnt[word] = cnt.get(word, 0) + 1
+    return cnt
+```
+
+### Feature Extraction Function
+
+```python
+def feature_eng(text1, text2):
+    text1 = clean_data(text1)
+    text2 = clean_data(text2)
+
+    # Fuzzy word replacement: replace substrings in text2 that overlap with text1
+    for x1 in range(len(text1)):
+        for x2 in range(len(text2)):
+            text2[x2] = words_similarity(text1[x1], text2[x2])
+
+    t1 = pd.Series(counter(text1))
+    t2 = pd.Series(counter(text2))
+    T  = pd.DataFrame({"text1": t1, "text2": t2})
+    T.fillna(0, inplace=True)
+
+    cosine   = np.dot(T.text1, T.text2) / (
+                   np.linalg.norm(T.text1) * np.linalg.norm(T.text2)
+               )
+    jaccard  = np.intersect1d(t1.index, t2.index).size / T.shape[0]
+    distance = np.linalg.norm(T.text1 - T.text2)
+
+    return pd.Series([cosine, jaccard, distance])
+
+train[["cosine", "jaccard", "distance"]] = (
+    train[["anchor", "target"]].apply(lambda x: feature_eng(*x), axis=1)
+)
+```
+
+The three resulting features, together with the label-encoded `context`, form the final feature matrix. The original text columns (`id`, `anchor`, `target`) are dropped before modelling:
+
+```python
+train_fe = pd.get_dummies(train, columns=["context"], drop_first=True)
+train_fe.drop(columns=["id", "anchor", "target", "score"], inplace=True)
+train_fe["score"] = train.score
+```
+
+## Model Training and Evaluation
+
+All classifiers are tuned with 5-fold cross-validation using `GridSearchCV`. The dataset is split 25 % training / 75 % test (stratified by `score`).
+
+```python
+from sklearn.model_selection import train_test_split, KFold, GridSearchCV
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score
+
+main_kfold = KFold(5, shuffle=True, random_state=49)
+data_train, data_test = train_test_split(
+    train_fe, test_size=0.75, random_state=141, stratify=train_fe["score"]
+)
+
+x_train = data_train.drop(columns="score")
+y_train = data_train.score
+x_test  = data_test.drop(columns="score")
+y_test  = data_test.score
+```
+
+### K-Nearest Neighbours
+
+```python
+from sklearn.neighbors import KNeighborsClassifier
+
+knn = KNeighborsClassifier(n_jobs=-1, p=1)
+knn_gscv = GridSearchCV(
+    knn,
+    {"n_neighbors": np.arange(3, 95, 2)},
+    cv=main_kfold,
+    scoring="accuracy",
+    n_jobs=-1,
+)
+knn_gscv.fit(x_train, y_train)
+accuracy_knn = accuracy_score(knn_gscv.predict(x_test), y_test).round(3)
+```
+
+### Random Forest
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier(n_jobs=-1)
+rf_gscv = GridSearchCV(
+    rf,
+    {"n_estimators": np.array([15, 50, 75, 100, 200, 250, 300, 350, 400])},
+    cv=main_kfold,
+    scoring="accuracy",
+    n_jobs=-1,
+)
+rf_gscv.fit(x_train, y_train)
+accuracy_rf = accuracy_score(rf_gscv.predict(x_test), y_test).round(3)
+```
+
+### Gradient Boosting
+
+```python
+from sklearn.ensemble import GradientBoostingClassifier
+
+gb = GradientBoostingClassifier()
+gb_gscv = GridSearchCV(
+    gb,
+    {"n_estimators": np.array([15, 50, 100, 300, 500, 750])},
+    cv=main_kfold,
+    scoring="accuracy",
+    n_jobs=-1,
+)
+gb_gscv.fit(x_train, y_train)
+accuracy_gb = accuracy_score(gb_gscv.predict(x_test), y_test).round(3)
+```
+
+### Neural Network
+
+A small feed-forward network with two hidden layers is built with `tensorflow.keras` and wrapped in a `KerasClassifier` for compatibility with `GridSearchCV`:
+
+```python
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.optimizers import Adam
+from scikeras.wrappers import KerasClassifier
+
+def create_model(neurons1, neurons2):
+    model = Sequential()
+    model.add(Input(x_train.shape[1]))
+    model.add(Dense(neurons1, activation="relu"))
+    model.add(Dense(neurons2, activation="relu"))
+    model.add(Dense(5, activation="softmax"))
+    model.compile(optimizer=Adam(), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    return model
+
+model = KerasClassifier(model=create_model, verbose=0)
+N = np.arange(10, 110, step=10)
+nn_gscv = GridSearchCV(
+    model,
+    dict(model__neurons1=N, model__neurons2=N),
+    cv=main_kfold,
+    scoring="accuracy",
+    n_jobs=-1,
+)
+nn_gscv.fit(x_train, y_train)
+accuracy_nn = accuracy_score(nn_gscv.predict(x_test), y_test).round(3)
+```
+
+## Similarity Metrics Explained
+
+| Feature | Formula | Interpretation |
+|---|---|---|
+| **Cosine similarity** | `dot(t1, t2) / (‖t1‖ × ‖t2‖)` | 1.0 = identical term distributions; 0.0 = no shared vocabulary |
+| **Jaccard index** | `|t1 ∩ t2| / |t1 ∪ t2|` | Fraction of vocabulary shared between the two texts |
+| **Euclidean distance** | `‖t1 − t2‖` | Raw magnitude of difference; smaller = more similar |
+
+The correlation heatmap (produced with `seaborn.heatmap`) shows how each feature correlates with the ground-truth `score`, guiding which features are most predictive.

@@ -1,5 +1,5 @@
 ---
-title: "Python Libraries Used Across All Case Studies"
+title: "Python Libraries Reference: Data Science Case Studies"
 sidebarTitle: "Libraries"
 description: "Reference guide for every Python library used in the Data Science & Analytics case studies, with install commands and primary use cases."
 ---
@@ -32,9 +32,10 @@ These libraries appear in the classification and regression case studies, includ
 | `scikit-learn` | Classification, regression, preprocessing, and train/test splitting. Used for Logistic Regression, Random Forest, KNN, SVM, and evaluation metrics across multiple notebooks. | `pip install scikit-learn` |
 | `xgboost` | Gradient boosted trees via `XGBClassifier`. Used in the Estudio de Recompra repurchase prediction model, reaching ~80% ROC-AUC. | `pip install xgboost` |
 | `lightgbm` | Light gradient boosting via `LGBMClassifier`. Used alongside XGBoost in the Estudio de Recompra case for comparative model evaluation. | `pip install lightgbm` |
+| `optuna` | Hyperparameter optimisation framework. Used in the Estudio de Recompra notebook to tune Logistic Regression, XGBoost, and LightGBM models via `optuna.create_study`. | `pip install optuna` |
 
 ```bash
-pip install scikit-learn xgboost lightgbm
+pip install scikit-learn xgboost lightgbm optuna
 ```
 
 ---
@@ -106,7 +107,7 @@ Use the commands below to install everything in one step. The first block covers
 <CodeGroup>
 
 ```bash All notebooks
-pip install pandas numpy scikit-learn xgboost lightgbm nltk textblob wordcloud matplotlib seaborn jupyter
+pip install pandas numpy scikit-learn xgboost lightgbm optuna nltk textblob wordcloud matplotlib seaborn jupyter
 ```
 
 ```bash SQL cases

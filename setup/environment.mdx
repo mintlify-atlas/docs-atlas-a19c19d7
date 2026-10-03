@@ -1,7 +1,7 @@
 ---
-title: "Configure Your Development Environment"
+title: "Configure Your Data Science Development Environment"
 sidebarTitle: "Environment"
-description: "Set up Python 3.12, Jupyter, and MySQL 8.0 to run every case study in the Data Science & Analytics collection."
+description: "Set up Python 3.12, a virtual environment, Jupyter Notebook or JupyterLab, and MySQL 8.0 to run any case study in the Data Science & Analytics collection."
 ---
 
 The Data Science & Analytics collection has two runtime requirements: **Python 3.12+** (needed for every Jupyter Notebook case study) and **MySQL 8.0+** (needed only for the Barcelona Accidents SQL case). Everything else — libraries, data files, and notebooks — is self-contained inside each case study folder.
@@ -109,14 +109,14 @@ pip install mysql-connector-python pandas
 
 ### Configure your credentials
 
-Each of the five scripts (`01_schema.py` through `05_analysis_queries.py`) connects to MySQL using a hardcoded credentials block. Before running any script, open the file and update the connection details to match your local MySQL setup:
+Each of the five scripts (`01_schema.py` through `05_analysis_queries.py`) connects to MySQL using a hardcoded credentials block. `01_schema.py` connects without a `database` argument (it creates the database first); scripts `02` through `05` also pass `database='AccidentesBCN'`. Before running any script, open the file and update the connection details to match your local MySQL setup:
 
 ```python
 connection = mysql.connector.connect(
     host='localhost',
     user='root',
-    password='your_password',  # ← replace with your MySQL password
-    database='AccidentesBCN'
+    password='',          # ← replace with your MySQL root password if set
+    database='AccidentesBCN'  # present in scripts 02–05; omitted in 01_schema.py
 )
 ```
 

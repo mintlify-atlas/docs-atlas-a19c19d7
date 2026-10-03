@@ -1,10 +1,10 @@
 ---
 title: "Customer Repurchase Prediction with XGBoost and LightGBM"
 sidebarTitle: "Repurchase Model"
-description: "Predict which online retail customers will repurchase using RFM segmentation, Logistic Regression, XGBoost, and LightGBM with ~80% ROC-AUC."
+description: "Predict which online retail customers will repurchase using behavioral features, Logistic Regression, XGBoost, and LightGBM with ~80% ROC-AUC."
 ---
 
-This project analyzes more than 1 million online retail transactions to predict customer repurchase probability. Starting from raw transactional data, the pipeline cleans and explores the dataset, segments customers using RFM (Recency, Frequency, Monetary) features, labels each customer as a repurchaser or not, and then trains three binary classifiers — Logistic Regression, XGBoost, and LightGBM — evaluated by ROC-AUC.
+This project analyzes more than 1 million online retail transactions to predict customer repurchase probability. Starting from raw transactional data, the pipeline cleans and explores the dataset, aggregates per-customer behavioral features, labels each customer as a repurchaser or not, and then trains three binary classifiers — Logistic Regression, XGBoost, and LightGBM — evaluated by ROC-AUC.
 
 ## Dataset
 
@@ -89,21 +89,61 @@ Estudio de recompra/
     - **Time series** — monthly revenue computed as `df['Revenue'] = df['Quantity'] * df['Price']`, revealing seasonal peaks toward year-end
   </Step>
 
-  <Step title="RFM Segmentation">
-    Each customer with a known `Customer ID` is summarized into three RFM features:
-    - **Recency** — days since last purchase (lower = more recent)
-    - **Frequency** — total number of distinct invoices
-    - **Monetary** — total cumulative spend (`sum(Quantity × Price)`)
+  <Step title="Aggregate Customer Features">
+    Customers with a known `Customer ID` are aggregated into behavioral features using the `agrupar_clientes()` helper from `src/anejo.py`. The resulting per-customer DataFrame contains:
 
-    See the [RFM Segmentation](#rfm-segmentation) section below for implementation details.
+    | Feature | Description |
+    |---------|-------------|
+    | `Revenue_Total` | Total cumulative spend |
+    | `Num_Compras` | Total number of distinct invoices |
+    | `Primera_Compra` | Date of first purchase |
+    | `Ultima_Compra` | Date of most recent purchase |
+    | `Ticket_Medio` | Average spend per invoice |
+    | `País` | Customer country |
+
+    ```python
+    from src.anejo import agrupar_clientes
+
+    df_valid = df[df['Customer ID'].notna()].copy()
+    clientes = agrupar_clientes(df_valid)
+    # Total de clientes: 5,874
+    ```
   </Step>
 
   <Step title="Build Repurchase Label">
-    A binary target is constructed: did the customer make at least one purchase after a defined reference date? Customers who appear in more than one time window are labeled `1` (repurchaser); those who do not are labeled `0`.
+    A cutoff date is defined at 70% of the total date range (approximately 2011-05-02). Customers present in the pre-cutoff window are features; those who also appear after the cutoff are labeled `1` (repurchaser):
+
+    ```python
+    import numpy as np
+
+    total_seconds = (max_date - min_date).total_seconds()
+    fecha_corte = min_date + pd.to_timedelta(total_seconds * 0.7, unit='s')
+    # fecha_corte: 2011-05-02 01:42:30
+
+    df_modelo = df_valid[df_valid['InvoiceDate'] <= fecha_corte].copy()
+    clientes_modelo = agrupar_clientes(df_modelo)
+
+    pseudo_recompra = df_valid[df_valid.InvoiceDate > fecha_corte]['Customer ID'].unique()
+    clientes_modelo['Recompró'] = np.where(
+        clientes_modelo.index.isin(pseudo_recompra), 1, 0
+    )
+    # Total de clientes en el modelo: 4,819
+    ```
+  </Step>
+
+  <Step title="Feature Preprocessing">
+    Country is one-hot encoded. Numeric features (`Revenue_Total`, `Primera_Compra`, `Ultima_Compra`, `Ticket_Medio`) are min-max scaled to [0, 1]. The train/test split uses 20% training and 80% test with 10-fold `KFold` for cross-validation:
+
+    ```python
+    from sklearn.model_selection import train_test_split, KFold
+
+    main_kfold = KFold(10, shuffle=True, random_state=49)
+    data_train, data_test = train_test_split(modelo, test_size=0.80, random_state=141)
+    ```
   </Step>
 
   <Step title="Train Models">
-    Three classifiers are trained on the RFM feature matrix:
+    Three classifiers are trained on the customer feature matrix. Hyperparameters are tuned with **Optuna** (Bayesian optimization):
 
     ```python
     from sklearn.linear_model import LogisticRegression
@@ -119,54 +159,26 @@ Estudio de recompra/
   </Step>
 
   <Step title="Evaluate with ROC-AUC">
-    Models are evaluated using ROC-AUC on a held-out test set. XGBoost achieves **~80% ROC-AUC**, outperforming Logistic Regression and matching LightGBM.
+    Models are evaluated using ROC-AUC on the held-out test set. All three models achieve approximately **~80% ROC-AUC**.
   </Step>
 </Steps>
 
-## RFM Segmentation
-
-RFM groups customers by three behavioral dimensions derived entirely from transaction history:
-
-| Feature | Definition |
-|---------|------------|
-| **Recency** | Days elapsed since the customer's most recent purchase |
-| **Frequency** | Number of distinct invoices (purchase occasions) |
-| **Monetary** | Total spend: `sum(Quantity × Price)` across all invoices |
-
-```python
-import pandas as pd
-
-reference_date = df['InvoiceDate'].max()
-
-rfm = (
-    df.groupby('Customer ID')
-    .agg(
-        Recency   = ('InvoiceDate', lambda x: (reference_date - x.max()).days),
-        Frequency = ('Invoice',     'nunique'),
-        Monetary  = ('Revenue',     'sum')
-    )
-    .reset_index()
-)
-```
-
-These three features are then used directly as inputs to the classification models.
-
 ## Model Comparison
 
-| Model | ROC-AUC |
-|-------|---------|
-| Logistic Regression | ~0.74 |
-| LightGBM | ~0.79 |
-| **XGBoost** | **~0.80** |
+| Model | CV ROC-AUC | Test ROC-AUC |
+|-------|------------|--------------|
+| Logistic Regression | 0.774 | 0.799 |
+| LightGBM | 0.788 | 0.796 |
+| **XGBoost** | **0.792** | **0.801** |
 
-XGBoost yields the highest ROC-AUC, followed closely by LightGBM. Logistic Regression provides a useful baseline and requires no hyperparameter tuning, but its linear decision boundary limits performance on the non-linear RFM feature space.
+XGBoost yields the highest test ROC-AUC (0.801), followed closely by LightGBM (0.796) and Logistic Regression (0.799). All three models achieve approximately **~80% ROC-AUC** on the large 80% held-out test set.
 
 ## Results
 
-The best model — **XGBoost** — achieves approximately **80% ROC-AUC** on the held-out test set. Feature importance analysis confirms that the three most predictive signals are:
+The best model — **XGBoost** — achieves approximately **80% ROC-AUC** on the held-out test set. Feature importance analysis confirms the most predictive signals across all three models:
 
-1. **Recency** — customers who purchased recently are far more likely to return
-2. **Frequency** — habitual buyers show higher repurchase rates
-3. **Monetary (total spend)** — high-value customers tend to be loyal
+- **`Ultima_Compra` (recency)** — customers who purchased most recently are far more likely to return (top feature in Logistic Regression and LightGBM)
+- **`Num_Compras` (frequency)** — habitual buyers show higher repurchase rates (top feature in XGBoost)
+- **`Revenue_Total` (total spend)** — high-value customers tend to be loyal
 
-These findings align with classical CRM theory: recency is the single strongest individual predictor of future purchase behavior.
+These findings align with classical CRM theory: recency and purchase frequency are the strongest individual predictors of future purchase behavior.
